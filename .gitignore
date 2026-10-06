@@ -11,3 +11,4 @@ loan-shares/
 .env.local
 *.log
 .DS_Store
+web/screens/

@@ -1,4 +1,4 @@
-# Lentic — USDC loans against shielded ZEC that never leaves the pool
+# Lentic: USDC loans against shielded ZEC that never leaves the pool
 
 > The borrower's ZEC sits in a per-loan **2-of-3 FROST** escrow (borrower · lender · TEE policy signer) inside
 > the **Ironwood** shielded pool. Nothing is wrapped, bridged or taken into custody. The lender checks the
@@ -60,9 +60,9 @@ frost-core only), and signing with a PCZT-supplied randomizer uses an API frost-
 | `crates/lentic-signer` | Borrower/lender CLI: DKG, share bundles, escrow keys, PCZT inspect/sign, `terms-hash`, offline `demo` |
 | `crates/lentic-watch` | Chain CLI: server info, Ironwood tree state, prove, extract, broadcast |
 | `contracts/` | Foundry: `LenderVault`, `LoanBook`, `AttestationVerifier` + `TdxQuote`, `LoanTermsLib`; mocks; deploy scripts |
-| `web/` | Vite + React + viem: lender panel and borrower status page |
+| `web/` | Vite + React + viem: a home page led by the flood drill, the lender book and one gauge station per loan. Design direction in [web/DESIGN.md](web/DESIGN.md) |
 | `deploy/` | Policy signer Dockerfile, local docker-compose, dstack app compose |
-| `scripts/` | `export-abis.mjs`, `dev-deploy.sh`, `smoke.sh` |
+| `scripts/` | `export-abis.mjs`, `dev-deploy.sh`, `smoke.sh`, `screens.mjs`, `design-check.mjs` |
 
 ## Quickstart
 
@@ -87,7 +87,7 @@ cargo build --workspace && pnpm local:deploy    # contracts + one funded demo lo
 ```
 
 ```bash
-pnpm policy          # terminal 2: policy signer on http://127.0.0.1:8787 (dev attestor, dev routes)
+pnpm policy          # terminal 2: policy signer on http://127.0.0.1:8787 (dev attestor, dev routes, health reports)
 ```
 
 ```bash
@@ -100,25 +100,31 @@ Everything at once on throwaway ports, as CI does:
 pnpm smoke
 ```
 
-Tests: `pnpm test` (Rust workspace incl. the Ironwood end-to-end flows, then Foundry).
+Tests: `pnpm test` (Rust workspace incl. the Ironwood end-to-end flows, then Foundry). Design: `pnpm design:check`
+(the banned-pattern check from web/DESIGN.md) and `pnpm screens` (375, 820 and 1280 px screenshots of the lender book
+and a station, with the live price and with a test price over flood stage, into `web/screens/`).
 
 ## Policy signer API
 
 | Route | |
 |---|---|
-| `GET /v1/info` | signer address, attestor, measurement, whether it is registered on Base |
+| `GET /v1/info` | signer address, attestor, measurement, whether it is registered on Base, round settings |
+| `GET /v1/price` | the latest ZEC/USD reading: median of five public exchange tickers (Pyth's public API now needs a key) |
+| `GET /v1/loans/{id}/gauge` | stages and every LTV reading for a loan the signer holds terms for (parties only in production) |
 | `GET /v1/attestation` | report data and quote to submit to `AttestationVerifier.register` |
 | `GET /v1/loans`, `GET /v1/loans/{id}` | LoanBook state |
 | `GET /v1/zcash` | chain info from every configured lightwalletd and whether they agree |
 | `POST /v1/assess` | terms + salt (+ loan id) → terms match on chain, accrued debt, LTV, health |
 | `POST /v1/liquidation-plan` | terms + price + debt → the exact outputs the signer will co-sign |
 | `POST /v1/loans/{id}/health` | dev only (`--dev-routes`): write health from the signer key |
+| `POST /v1/dev/price` | dev only: a test price instead of the exchanges (`{"usd": 650}`, `{"usd": null}` to clear) |
 
 ## Next
 
-Networked DKG/signing over frostd; FVK scanning into a wallet DB (`zcash_client_sqlite`) in `lentic-watch`; the policy
-loop (oracle → health → liquidation co-signing) and the policy signer's FROST share storage; Pyth ZEC/USD on Base;
-dstack deployment and real DCAP registration on Base Sepolia.
+Networked DKG/signing over frostd; FVK scanning into a wallet DB (`zcash_client_sqlite`) in `lentic-watch`, so the
+gauge shows the collateral the escrow holds instead of the amount committed in the terms; liquidation co-signing in the
+policy loop and the policy signer's FROST share storage; an authenticated oracle (Pyth with a key, or on-chain on
+Base); dstack deployment and real DCAP registration on Base Sepolia.
 
 ## License
 

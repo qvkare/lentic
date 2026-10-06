@@ -12,9 +12,11 @@
     "test": "cargo test --workspace --all-features && cd contracts && forge test",
     "local:chain": "anvil --port 8546 --chain-id 31337 --block-time 1",
     "local:deploy": "bash scripts/dev-deploy.sh",
-    "policy": "cargo run -p lentic-policy -- serve --dev-routes",
+    "policy": "cargo run -p lentic-policy -- serve --dev-routes --report-health",
     "web": "pnpm --filter @lentic/web dev",
     "demo": "cargo run -p lentic-signer -- demo",
-    "smoke": "bash scripts/smoke.sh"
+    "smoke": "bash scripts/smoke.sh",
+    "design:check": "node scripts/design-check.mjs web README.md",
+    "screens": "node scripts/screens.mjs"
   }
 }

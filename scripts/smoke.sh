@@ -10,7 +10,12 @@ API_PORT="${SMOKE_API_PORT:-8799}"
 RPC="http://127.0.0.1:$CHAIN_PORT"
 API="http://127.0.0.1:$API_PORT"
 PIDS=()
-cleanup() { for p in "${PIDS[@]:-}"; do kill "$p" 2>/dev/null || true; done; }
+# Its own loans and logs, so a running dev stack (dev/) is left alone.
+DEV_DIR=$(mktemp -d)
+cleanup() {
+  for p in "${PIDS[@]:-}"; do kill "$p" 2>/dev/null || true; done
+  rm -rf "$DEV_DIR"
+}
 trap cleanup EXIT
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
@@ -31,17 +36,17 @@ anvil --port "$CHAIN_PORT" --chain-id 31337 --silent &
 PIDS+=($!)
 for _ in $(seq 1 30); do cast chain-id --rpc-url "$RPC" >/dev/null 2>&1 && break; sleep 0.5; done
 
-RPC="$RPC" bash "$ROOT/scripts/dev-deploy.sh" >/dev/null
-LOAN_ID=$(python3 -c "import json; print(json.load(open('$ROOT/dev/loan.local.json'))['loanId'])")
+RPC="$RPC" DEV_DIR="$DEV_DIR" bash "$ROOT/scripts/dev-deploy.sh" >/dev/null 2>&1
+LOAN_ID=$(python3 -c "import json; print(json.load(open('$DEV_DIR/loan.local.json'))['loanId'])")
 pass "contracts deployed, demo loan funded"
 
 echo "policy signer on :$API_PORT"
 # Started directly (no subshell) so that $! is the server itself and cleanup really stops it.
 "$ROOT/target/debug/lentic-policy" serve --base-rpc "$RPC" --listen "127.0.0.1:$API_PORT" --dev-routes \
   --deployment "$ROOT/contracts/deployments/31337.json" --lightwalletd https://testnet.zec.rocks:443 \
-  >"$ROOT/dev/smoke-policy.log" 2>&1 &
+  --loans-dir "$DEV_DIR/loans" --price-usd 800 >"$DEV_DIR/policy.log" 2>&1 &
 PIDS+=($!)
-wait_for "$API/healthz" || fail "policy signer did not start (dev/smoke-policy.log)"
+wait_for "$API/healthz" || { cat "$DEV_DIR/policy.log"; fail "policy signer did not start"; }
 
 get() { curl -sf --max-time 60 "$API$1"; }
 field() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
@@ -49,7 +54,7 @@ field() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
 [ "$(get /v1/info | field "d['registeredOnBase']")" = "True" ] && pass "policy signer attested and registered on Base" || fail "not registered"
 [ "$(get /v1/loans | field "len(d)")" -ge 1 ] && pass "LoanBook lists the loan" || fail "loan missing"
 
-TERMS=$(cat "$ROOT/dev/terms.local.json")
+TERMS=$(cat "$DEV_DIR/terms.local.json")
 ASSESS=$(curl -sf --max-time 60 -X POST "$API/v1/assess" -H 'content-type: application/json' \
   -d "{\"terms\":$TERMS,\"salt\":\"0x4444444444444444444444444444444444444444444444444444444444444444\",\"loanId\":\"$LOAN_ID\",\"collateralZat\":2000000000,\"priceUsdE8\":80000000000,\"elapsedSecs\":2592000}")
 [ "$(echo "$ASSESS" | field "d['matchesOnChain']")" = "True" ] && pass "private terms match the on-chain termsHash" || fail "terms mismatch: $ASSESS"
@@ -62,6 +67,10 @@ QUOTE=$(get /v1/attestation | field "d['quote']")
 cast send --rpc-url "$RPC" --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
   "$(python3 -c "import json; print(json.load(open('$ROOT/contracts/deployments/31337.json'))['attestationVerifier'])")" \
   "register(bytes)" "$QUOTE" >/dev/null && pass "service-generated quote accepted by AttestationVerifier" || fail "quote rejected"
+
+for _ in $(seq 1 20); do get "/v1/loans/$LOAN_ID/gauge" | field "len(d['readings'])" | grep -qv '^0$' && break; sleep 1; done
+[ "$(get "/v1/loans/$LOAN_ID/gauge" | field "d['readings'][-1]['ltvBps']")" = "6250" ] \
+  && pass "gauge reading: 62.5 % LTV at a fixed 800 USD" || fail "gauge reading missing"
 
 if [ "${SMOKE_ZCASH_NETWORK:-1}" = "1" ]; then
   [ "$(get /v1/zcash | field "d['servers'][0]['ok']")" = "True" ] && pass "lightwalletd reachable (testnet)" || echo "  ! lightwalletd unreachable (network?) — skipped"
