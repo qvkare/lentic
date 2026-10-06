@@ -54,7 +54,8 @@ contract AttestationVerifier is IPolicySignerRegistry {
 
         uint64 validUntil = uint64(block.timestamp) + registrationTtl;
         bytes32 quoteHash = keccak256(quote);
-        registrations[signer] = Registration(validUntil, report.reportDataLow, quoteHash);
+        registrations[signer] =
+            Registration({validUntil: validUntil, configHash: report.reportDataLow, quoteHash: quoteHash});
         emit PolicySignerRegistered(signer, report.reportDataLow, quoteHash, validUntil);
     }
 

@@ -109,7 +109,9 @@ contract LenderVault is ERC4626, Ownable {
     function fund(bytes32 loanId, bytes32 termsHash, address borrower, uint128 principal) external onlyOwner {
         uint256 available = idle();
         if (available < principal) revert InsufficientIdle(available, principal);
-        positions[loanId] = Position(borrower, principal, 0, 0, false);
+        positions[loanId] = Position({
+            borrower: borrower, principal: principal, principalRepaid: 0, interestPaid: 0, writtenOff: false
+        });
         totalOutstanding += principal;
         loanBook.open(loanId, termsHash);
         IERC20(asset()).safeTransfer(borrower, principal);

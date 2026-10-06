@@ -24,3 +24,6 @@ line_length = 110
 [lint]
 # Tests cast small constants (e.g. uint128(10_000 * USDC)); lint production code only.
 ignore = ["test/**/*.sol"]
+# Public immutables are part of the ABI the services and the web app read (loanBook(), feeBps()),
+# and keccak256 is clearer than inline assembly at these call sites.
+exclude_lints = ["screaming-snake-case-immutable", "asm-keccak256"]
