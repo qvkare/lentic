@@ -81,28 +81,8 @@ export async function listLoans(d: Deployment): Promise<Loan[]> {
   return loans.filter((l): l is Loan => l !== null).reverse();
 }
 
-export type HealthEvent = { health: Health; oracleRound: bigint; signer: Address; block: bigint; tx: Hex };
-
-export async function healthHistory(d: Deployment, loanId: Hex): Promise<HealthEvent[]> {
-  const logs = await client.getContractEvents({
-    address: d.loanBook,
-    abi: loanBookAbi,
-    eventName: "HealthUpdated",
-    args: { loanId },
-    fromBlock: d.startBlock,
-  });
-  return logs.map((l) => ({
-    health: HEALTH[Number(l.args.health)] ?? "none",
-    oracleRound: l.args.oracleRound ?? 0n,
-    signer: l.args.signer as Address,
-    block: l.blockNumber,
-    tx: l.transactionHash,
-  }));
-}
-
 export type VaultSummary = {
   address: Address;
-  owner: Address;
   totalAssets: bigint;
   idle: bigint;
   outstanding: bigint;
@@ -111,10 +91,9 @@ export type VaultSummary = {
 };
 
 export async function vaultSummary(vault: Address): Promise<VaultSummary> {
-  const read = <F extends "owner" | "totalAssets" | "idle" | "totalOutstanding" | "feeBps" | "name">(functionName: F) =>
+  const read = <F extends "totalAssets" | "idle" | "totalOutstanding" | "feeBps" | "name">(functionName: F) =>
     client.readContract({ address: vault, abi: lenderVaultAbi, functionName });
-  const [owner, totalAssets, idle, outstanding, feeBps, name] = await Promise.all([
-    read("owner"),
+  const [totalAssets, idle, outstanding, feeBps, name] = await Promise.all([
     read("totalAssets"),
     read("idle"),
     read("totalOutstanding"),
@@ -123,11 +102,108 @@ export async function vaultSummary(vault: Address): Promise<VaultSummary> {
   ]);
   return {
     address: vault,
-    owner: owner as Address,
     totalAssets: totalAssets as bigint,
     idle: idle as bigint,
     outstanding: outstanding as bigint,
     feeBps: Number(feeBps),
     name: name as string,
   };
+}
+
+export type Party = "borrower" | "lender" | "policy";
+
+/** One row of the key-turn ledger: what happened and which keys acted. */
+export type KeyTurn = {
+  key: string;
+  event: string;
+  detail: string;
+  acted: Party[];
+  health?: Health;
+  block: bigint;
+  time: number;
+};
+
+const blockTimes = new Map<bigint, number>();
+async function blockTime(block: bigint): Promise<number> {
+  const hit = blockTimes.get(block);
+  if (hit !== undefined) return hit;
+  const b = await client.getBlock({ blockNumber: block });
+  blockTimes.set(block, Number(b.timestamp));
+  return Number(b.timestamp);
+}
+
+const STAGE_REPORT: Record<Health, string> = {
+  none: "Reported",
+  active: "Reported below action stage",
+  margin_call: "Reported action stage",
+  liquidating: "Reported flood stage",
+  closed: "Reported closed",
+  liquidated: "Liquidation co-signed",
+};
+
+/** Base events for a loan, oldest first, mapped to the keys that acted. */
+export async function keyTurns(d: Deployment, loan: Loan): Promise<KeyTurn[]> {
+  const from = d.startBlock;
+  const [opened, reports, funded, repaid, writtenOff] = await Promise.all([
+    client.getContractEvents({ address: d.loanBook, abi: loanBookAbi, eventName: "LoanOpened", args: { loanId: loan.loanId }, fromBlock: from }),
+    client.getContractEvents({ address: d.loanBook, abi: loanBookAbi, eventName: "HealthUpdated", args: { loanId: loan.loanId }, fromBlock: from }),
+    client.getContractEvents({ address: loan.vault, abi: lenderVaultAbi, eventName: "LoanFunded", args: { loanId: loan.loanId }, fromBlock: from }),
+    client.getContractEvents({ address: loan.vault, abi: lenderVaultAbi, eventName: "LoanRepaid", args: { loanId: loan.loanId }, fromBlock: from }),
+    client.getContractEvents({ address: loan.vault, abi: lenderVaultAbi, eventName: "LoanWrittenOff", args: { loanId: loan.loanId }, fromBlock: from }),
+  ]);
+
+  const rows: Omit<KeyTurn, "time">[] = [];
+  const principal = funded[0]?.args.principal ?? 0n;
+  for (const e of opened) {
+    rows.push({
+      key: `${e.transactionHash}-${e.logIndex}`,
+      event: "Opened and paid out",
+      detail: principal ? `${formatUsdc(principal)} from the lender's vault` : "Lender's vault",
+      acted: ["lender"],
+      block: e.blockNumber,
+    });
+  }
+  for (const e of reports) {
+    const health = HEALTH[Number(e.args.health)] ?? "none";
+    const byVault = (e.args.signer as string).toLowerCase() === loan.vault.toLowerCase();
+    rows.push({
+      key: `${e.transactionHash}-${e.logIndex}`,
+      event: byVault ? "Closed by borrower and lender" : STAGE_REPORT[health],
+      detail: byVault ? "Recorded by the lender's vault" : `Price reading of ${readingTime(e.args.oracleRound)}`,
+      acted: byVault ? ["borrower", "lender"] : health === "liquidated" ? ["lender", "policy"] : ["policy"],
+      health,
+      block: e.blockNumber,
+    });
+  }
+  for (const e of repaid) {
+    const amount = (e.args.principalPart ?? 0n) + (e.args.interestPart ?? 0n);
+    rows.push({
+      key: `${e.transactionHash}-${e.logIndex}`,
+      event: "Repayment",
+      detail: `${formatUsdc(amount)} into the vault`,
+      acted: ["borrower"],
+      block: e.blockNumber,
+    });
+  }
+  for (const e of writtenOff) {
+    rows.push({
+      key: `${e.transactionHash}-${e.logIndex}`,
+      event: "Written off",
+      detail: `${formatUsdc(e.args.principalLost ?? 0n)} left the vault's books`,
+      acted: ["lender"],
+      block: e.blockNumber,
+    });
+  }
+  rows.sort((a, b) => (a.block < b.block ? -1 : a.block > b.block ? 1 : 0));
+  return Promise.all(rows.map(async (r) => ({ ...r, time: await blockTime(r.block) })));
+}
+
+/** Oracle rounds are the price reading's unix time. */
+function readingTime(round: bigint | undefined): string {
+  if (!round) return "";
+  return new Date(Number(round) * 1000).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+function formatUsdc(micro: bigint): string {
+  return `${(Number(micro) / 1e6).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC`;
 }
