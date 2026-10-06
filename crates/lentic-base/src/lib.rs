@@ -150,3 +150,23 @@ pub async fn vault_summary<P: Provider>(provider: &P, vault: Address) -> Result<
         fee_bps: v.feeBps().call().await?,
     })
 }
+
+/// A loan's repayment record in its LenderVault (public on Base: these are USDC transfers).
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultPosition {
+    pub principal: u128,
+    pub principal_repaid: u128,
+    pub interest_paid: u128,
+    pub written_off: bool,
+}
+
+pub async fn vault_position<P: Provider>(provider: &P, vault: Address, loan_id: B256) -> Result<VaultPosition> {
+    let p = LenderVault::new(vault, provider).positions(loan_id).call().await?;
+    Ok(VaultPosition {
+        principal: p.principal,
+        principal_repaid: p.principalRepaid,
+        interest_paid: p.interestPaid,
+        written_off: p.writtenOff,
+    })
+}

@@ -5,6 +5,8 @@
 
 mod api;
 mod attest;
+mod book;
+mod price;
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -27,6 +29,8 @@ struct Cli {
     command: Command,
 }
 
+// Parsed once at startup; boxing the larger variant would buy nothing.
+#[allow(clippy::large_enum_variant)]
 #[derive(Subcommand)]
 enum Command {
     /// Run the policy signer HTTP API.
@@ -72,6 +76,18 @@ struct ServeArgs {
     /// Enable state-changing operator routes (local development only).
     #[arg(long, env = "LENTIC_DEV_ROUTES", default_value_t = false)]
     dev_routes: bool,
+    /// Directory of held loans (`<loanId>.json` with loanId, salt and terms).
+    #[arg(long, env = "LENTIC_LOANS_DIR", default_value = "dev/loans")]
+    loans_dir: PathBuf,
+    /// Seconds between rounds (price reading + every held loan).
+    #[arg(long, env = "LENTIC_ROUND_SECS", default_value_t = 15)]
+    round_secs: u64,
+    /// Write health changes to LoanBook from the signer key.
+    #[arg(long, env = "LENTIC_REPORT_HEALTH", default_value_t = false)]
+    report_health: bool,
+    /// Fixed ZEC/USD instead of the exchange median (offline development).
+    #[arg(long, env = "LENTIC_PRICE_USD")]
+    price_usd: Option<f64>,
 }
 
 #[tokio::main]
@@ -128,6 +144,11 @@ async fn serve(args: ServeArgs) -> Result<()> {
         deployment.chain_id
     );
 
+    let loans = book::load_dir(&args.loans_dir)?;
+    let feed = match args.price_usd {
+        Some(usd) => price::Feed::Fixed(usd),
+        None => price::Feed::exchanges(),
+    };
     let state = Arc::new(api::AppState {
         signer_address: signer.address(),
         config_hash: attest::config_hash(&args.config_id),
@@ -137,8 +158,27 @@ async fn serve(args: ServeArgs) -> Result<()> {
         zcash_network: args.zcash_network,
         lightwalletd: args.lightwalletd,
         dev_routes: args.dev_routes,
+        feed,
+        book: book::Book::new(loans),
+        report_health: args.report_health,
+        round_secs: args.round_secs.max(1),
     });
-    info!(signer = %state.signer_address, attestor = state.attestor.kind(), chain_id, "policy signer starting");
+    info!(
+        signer = %state.signer_address,
+        attestor = state.attestor.kind(),
+        chain_id,
+        loans = state.book.loans.len(),
+        "policy signer starting"
+    );
+
+    let rounds = state.clone();
+    tokio::spawn(async move {
+        let mut tick = tokio::time::interval(std::time::Duration::from_secs(rounds.round_secs));
+        loop {
+            tick.tick().await;
+            rounds.book.round(&rounds).await;
+        }
+    });
 
     let app = api::router(state);
     let listener = tokio::net::TcpListener::bind(args.listen).await?;
