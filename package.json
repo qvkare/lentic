@@ -1,0 +1,20 @@
+{
+  "name": "lentic",
+  "private": true,
+  "version": "0.1.0",
+  "description": "USDC loans against shielded ZEC that never leaves the shielded pool",
+  "license": "MIT",
+  "packageManager": "pnpm@10.28.2",
+  "scripts": {
+    "build": "cargo build --workspace && pnpm build:contracts && pnpm abis && pnpm --filter @lentic/web build",
+    "build:contracts": "cd contracts && forge build",
+    "abis": "node scripts/export-abis.mjs",
+    "test": "cargo test --workspace --all-features && cd contracts && forge test",
+    "local:chain": "anvil --port 8546 --chain-id 31337 --block-time 1",
+    "local:deploy": "bash scripts/dev-deploy.sh",
+    "policy": "cargo run -p lentic-policy -- serve --dev-routes",
+    "web": "pnpm --filter @lentic/web dev",
+    "demo": "cargo run -p lentic-signer -- demo",
+    "smoke": "bash scripts/smoke.sh"
+  }
+}

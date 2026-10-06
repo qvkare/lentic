@@ -1,0 +1,20 @@
+[package]
+name = "lentic-signer"
+description = "Lentic borrower/lender signer: DKG, escrow keys, PCZT inspection and FROST signing"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+lentic-core = { workspace = true }
+lentic-frost = { workspace = true }
+lentic-zcash = { workspace = true, features = ["sim"] }
+orchard = { workspace = true }
+zcash_protocol = { workspace = true }
+rand_core_06 = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+hex = { workspace = true }

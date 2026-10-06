@@ -1,0 +1,15 @@
+[package]
+name = "lentic-watch"
+description = "Lentic chain watcher: lightwalletd info, escrow proving, extraction and broadcast"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+lentic-zcash = { workspace = true }
+tokio = { workspace = true }
+clap = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+hex = { workspace = true }

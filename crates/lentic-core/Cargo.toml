@@ -1,0 +1,16 @@
+[package]
+name = "lentic-core"
+description = "Lentic shared types: loan terms, termsHash, health, liquidation split"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+alloy-primitives = { workspace = true, features = ["serde"] }
+alloy-sol-types = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

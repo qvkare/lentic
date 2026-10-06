@@ -1,0 +1,27 @@
+# Policy signer app for a dstack CVM (Phala Cloud / self-hosted dstack, TDX).
+#
+# This file is the app's code identity: dstack extends RTMR3 with its compose hash, and
+# AttestationVerifier on Base pins keccak256(MRTD ‖ RTMR0..3). Therefore:
+#   - pin the image by digest (a tag can move),
+#   - keep environment values that change behaviour here (they are hashed), and pass only
+#     operational secrets (RPC keys) as dstack encrypted env vars.
+# After deploying, read the measurement from the CVM (`lentic-policy measurement --attestor
+# dstack`), deploy AttestationVerifier/LoanBook with it (contracts/script/Deploy.s.sol), then
+# submit GET /v1/attestation's quote to AttestationVerifier.register.
+services:
+  lentic-policy:
+    image: ghcr.io/lentic-xyz/lentic-policy@sha256:REPLACE_WITH_RELEASE_DIGEST
+    restart: always
+    volumes:
+      - /var/run/dstack.sock:/var/run/dstack.sock
+    environment:
+      LENTIC_ATTESTOR: dstack
+      LENTIC_LISTEN: 0.0.0.0:8787
+      LENTIC_CONFIG_ID: lentic-policy-v1
+      LENTIC_DEPLOYMENT: /app/deployments/8453.json
+      ZCASH_NETWORK: mainnet
+      # Two independent servers; the signer refuses to act when they disagree.
+      LIGHTWALLETD: https://zec.rocks:443,https://zaino.example:443
+      BASE_RPC_URL: ${BASE_RPC_URL}
+    ports:
+      - "8787:8787"

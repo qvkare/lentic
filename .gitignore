@@ -1,0 +1,13 @@
+target/
+node_modules/
+web/dist/
+contracts/out/
+contracts/cache/
+contracts/broadcast/*/31337/
+dev/
+loan-shares/
+*.share.json
+.env
+.env.local
+*.log
+.DS_Store

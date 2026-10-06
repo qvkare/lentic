@@ -1,0 +1,9 @@
+target
+web
+dev
+.git
+contracts/out
+contracts/cache
+contracts/lib
+contracts/broadcast
+**/node_modules

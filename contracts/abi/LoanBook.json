@@ -1,0 +1,401 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "policySigners_",
+        "type": "address",
+        "internalType": "contract IPolicySignerRegistry"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "closeByVault",
+    "inputs": [
+      {
+        "name": "loanId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "loanCount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "loans",
+    "inputs": [
+      {
+        "name": "loanId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "termsHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "vault",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "health",
+        "type": "uint8",
+        "internalType": "enum LoanBook.Health"
+      },
+      {
+        "name": "openedAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "updatedAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "oracleRound",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "attestationHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "open",
+    "inputs": [
+      {
+        "name": "loanId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "termsHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "policySigners",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IPolicySignerRegistry"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "updateHealth",
+    "inputs": [
+      {
+        "name": "loanId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "health",
+        "type": "uint8",
+        "internalType": "enum LoanBook.Health"
+      },
+      {
+        "name": "oracleRound",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "attestationHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "verifyTerms",
+    "inputs": [
+      {
+        "name": "loanId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "terms",
+        "type": "tuple",
+        "internalType": "struct LoanTermsLib.LoanTerms",
+        "components": [
+          {
+            "name": "version",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "chainId",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "lenderVault",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "borrower",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "principal",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "aprBps",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "originationFeeBps",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "collateralZat",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "marginLtvBps",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "liquidationLtvBps",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "haircutBps",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "penaltyBps",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "fundingDeadline",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "maturity",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "escrowFvkHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "borrowerReturnAddress",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "lenderZcashAddress",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
+      },
+      {
+        "name": "salt",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "event",
+    "name": "HealthUpdated",
+    "inputs": [
+      {
+        "name": "loanId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "health",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "enum LoanBook.Health"
+      },
+      {
+        "name": "oracleRound",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "attestationHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "signer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "LoanOpened",
+    "inputs": [
+      {
+        "name": "loanId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "vault",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "termsHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "InvalidHealth",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "LoanExists",
+    "inputs": [
+      {
+        "name": "loanId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "LoanFinalized",
+    "inputs": [
+      {
+        "name": "loanId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "NotLoanVault",
+    "inputs": [
+      {
+        "name": "caller",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "NotPolicySigner",
+    "inputs": [
+      {
+        "name": "caller",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "StaleOracleRound",
+    "inputs": [
+      {
+        "name": "current",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "submitted",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "UnknownLoan",
+    "inputs": [
+      {
+        "name": "loanId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ]
+  }
+]

@@ -1,0 +1,26 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+test = "test"
+script = "script"
+solc_version = "0.8.30"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+via_ir = false
+fs_permissions = [
+    { access = "read", path = "./test/vectors" },
+    { access = "read-write", path = "./deployments" },
+]
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+]
+
+[fmt]
+line_length = 110
+
+[lint]
+# Tests cast small constants (e.g. uint128(10_000 * USDC)); lint production code only.
+ignore = ["test/**/*.sol"]

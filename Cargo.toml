@@ -1,0 +1,79 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/lentic-core",
+    "crates/lentic-frost",
+    "crates/lentic-zcash",
+    "crates/lentic-base",
+    "crates/lentic-signer",
+    "crates/lentic-watch",
+    "crates/lentic-policy",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+repository = "https://github.com/lentic-xyz/lentic"
+
+[workspace.dependencies]
+lentic-core = { path = "crates/lentic-core" }
+lentic-frost = { path = "crates/lentic-frost" }
+lentic-zcash = { path = "crates/lentic-zcash" }
+lentic-base = { path = "crates/lentic-base" }
+
+# Zcash (pre-releases pinned together: pczt 0.10.0-pre.0 is the first with Ironwood/v6 support)
+pczt = { version = "=0.10.0-pre.0", default-features = false }
+orchard = { version = "0.16", default-features = false }
+zcash_primitives = { version = "=0.31.0-pre.0", default-features = false }
+zcash_protocol = { version = "=0.11.0-pre.0", default-features = false }
+zcash_keys = { version = "=0.17.0-pre.0", default-features = false }
+zcash_address = { version = "=0.14.0-pre.0" }
+zcash_client_backend = { version = "=0.25.0-pre.0", default-features = false }
+zcash_note_encryption = "0.5.1"
+incrementalmerkletree = "0.9"
+shardtree = "0.8"
+pasta_curves = "0.6"
+ff = "0.14"
+group = "0.14"
+rand_core = "0.10"
+rand = "0.10"
+
+# FROST RedPallas (ZIP 312). The ciphersuite was removed from reddsa main on 2026-09-25
+# (ZcashFoundation/reddsa#280, moving to ZcashFoundation/frost#963); 0.5.2 is the last
+# published release that ships it, on frost-rerandomized 3.0. It coexists with the reddsa
+# 0.6 that orchard uses; the two only meet as serialized bytes.
+reddsa-frost = { package = "reddsa", version = "=0.5.2", features = ["frost"] }
+frost-rerandomized = { version = "3.0.0", features = ["serialization"] }
+rand_core_06 = { package = "rand_core", version = "0.6", features = ["getrandom"] }
+
+# EVM / Base
+alloy = "2.5"
+alloy-primitives = "1"
+alloy-sol-types = "1"
+
+# Services
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "net", "fs"] }
+axum = "0.8"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+clap = { version = "4", features = ["derive", "env"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+thiserror = "2"
+hex = { version = "0.4", features = ["serde"] }
+blake2b_simd = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+dstack-sdk = "0.1.3"
+
+[profile.dev]
+# The Orchard circuit is unusable without optimizations (proving takes minutes at opt-level 0).
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.test.package."*"]
+opt-level = 3

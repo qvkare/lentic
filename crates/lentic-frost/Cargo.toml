@@ -1,0 +1,21 @@
+[package]
+name = "lentic-frost"
+description = "2-of-3 re-randomized FROST (ZIP 312) over RedPallas for Lentic escrow keys"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+lentic-core = { workspace = true }
+reddsa-frost = { workspace = true }
+frost-rerandomized = { workspace = true }
+rand_core_06 = { workspace = true }
+orchard = { workspace = true }
+pasta_curves = { workspace = true }
+ff = { workspace = true }
+blake2b_simd = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+hex = { workspace = true }
+thiserror = { workspace = true }
