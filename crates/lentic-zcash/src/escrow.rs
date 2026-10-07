@@ -210,6 +210,11 @@ pub fn expiry_height(pczt: &Pczt) -> u32 {
     *pczt.global().expiry_height()
 }
 
+/// The consensus branch the PCZT's signatures commit to.
+pub fn consensus_branch_id(pczt: &Pczt) -> u32 {
+    *pczt.global().consensus_branch_id()
+}
+
 /// Non-zero Ironwood outputs, each checked against its note commitment so the plaintext
 /// recipient and value a signer reads are the ones that will be on chain.
 pub fn payments(pczt: &Pczt) -> Result<Vec<OutputView>, Error> {

@@ -6,7 +6,10 @@
 mod api;
 mod attest;
 mod book;
+mod cosign;
+mod dkg;
 mod price;
+mod store;
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -76,9 +79,12 @@ struct ServeArgs {
     /// Enable state-changing operator routes (local development only).
     #[arg(long, env = "LENTIC_DEV_ROUTES", default_value_t = false)]
     dev_routes: bool,
-    /// Directory of held loans (`<loanId>.json` with loanId, salt and terms).
+    /// Directory of held loans (`<loanId>.json` with loanId, salt, terms and DKG session).
     #[arg(long, env = "LENTIC_LOANS_DIR", default_value = "dev/loans")]
     loans_dir: PathBuf,
+    /// The signer's escrow key shares and co-signing record (an encrypted volume in a CVM).
+    #[arg(long, env = "LENTIC_STATE_DIR", default_value = "dev/policy")]
+    state_dir: PathBuf,
     /// Seconds between rounds (price reading + every held loan).
     #[arg(long, env = "LENTIC_ROUND_SECS", default_value_t = 15)]
     round_secs: u64,
@@ -145,12 +151,17 @@ async fn serve(args: ServeArgs) -> Result<()> {
     );
 
     let loans = book::load_dir(&args.loans_dir)?;
+    let store = store::Store::open(&args.state_dir)?;
+    let shares: Vec<dkg::PolicyShare> = store.all("shares")?;
+    let intents: Vec<cosign::Intent> = store.all("intents")?;
     let feed = match args.price_usd {
         Some(usd) => price::Feed::Fixed(usd),
         None => price::Feed::exchanges(),
     };
+    let (n_loans, n_shares) = (loans.len(), shares.len());
     let state = Arc::new(api::AppState {
         signer_address: signer.address(),
+        signer,
         config_hash: attest::config_hash(&args.config_id),
         attestor,
         provider,
@@ -162,12 +173,18 @@ async fn serve(args: ServeArgs) -> Result<()> {
         book: book::Book::new(loans),
         report_health: args.report_health,
         round_secs: args.round_secs.max(1),
+        loans_dir: args.loans_dir,
+        store,
+        dkg: dkg::Dkg::with_shares(shares),
+        cosign: cosign::Cosign::with_intents(intents),
+        zcash: Default::default(),
     });
     info!(
         signer = %state.signer_address,
         attestor = state.attestor.kind(),
         chain_id,
-        loans = state.book.loans.len(),
+        loans = n_loans,
+        escrow_keys = n_shares,
         "policy signer starting"
     );
 

@@ -139,6 +139,10 @@ pub struct VaultSummary {
     pub fee_bps: u16,
 }
 
+pub async fn vault_owner<P: Provider>(provider: &P, vault: Address) -> Result<Address> {
+    Ok(LenderVault::new(vault, provider).owner().call().await?)
+}
+
 pub async fn vault_summary<P: Provider>(provider: &P, vault: Address) -> Result<VaultSummary> {
     let v = LenderVault::new(vault, provider);
     Ok(VaultSummary {

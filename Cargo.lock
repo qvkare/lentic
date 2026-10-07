@@ -3808,9 +3808,13 @@ dependencies = [
  "dstack-sdk",
  "futures-util",
  "hex",
+ "incrementalmerkletree",
  "lentic-base",
  "lentic-core",
+ "lentic-frost",
  "lentic-zcash",
+ "orchard",
+ "rand_core 0.6.4",
  "reqwest 0.13.5",
  "serde",
  "serde_json",
@@ -3818,6 +3822,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "zcash_protocol",
 ]
 
 [[package]]

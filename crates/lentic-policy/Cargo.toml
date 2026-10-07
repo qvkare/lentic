@@ -10,6 +10,10 @@ license.workspace = true
 lentic-core = { workspace = true }
 lentic-base = { workspace = true }
 lentic-zcash = { workspace = true }
+lentic-frost = { workspace = true }
+orchard = { workspace = true }
+zcash_protocol = { workspace = true }
+rand_core_06 = { workspace = true }
 alloy = { workspace = true }
 dstack-sdk = { workspace = true }
 tokio = { workspace = true }
@@ -24,3 +28,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
 futures-util = "0.3"
+
+[dev-dependencies]
+lentic-zcash = { workspace = true, features = ["sim"] }
+incrementalmerkletree = { workspace = true }

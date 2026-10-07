@@ -42,7 +42,7 @@ fn scan_err(e: impl std::fmt::Display) -> Error {
 }
 
 /// Where a note was spent.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SpentIn {
     pub txid: String,
