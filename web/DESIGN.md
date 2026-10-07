@@ -84,6 +84,7 @@ Tests:
 | Rule | `#D3DAD6` | Hairlines, table rules, borders |
 | Lake | `#D2DFD8` / `#3D6A5C` | The shielded pool: water fill and the water line. Never used for text on lake |
 | Flood | `#BF3A1F` | Only when the water reaches flood stage: liquidating or liquidated |
+| Mark | `#0E7C86` | The disc of the mark (wordmark, favicon, README) and nowhere in the interface |
 
 Colour means: lake is collateral inside the shielded pool; flood is liquidation. Being healthy is the normal state and
 is drawn in ink. A margin call is ink too, because nothing moves.
@@ -97,6 +98,13 @@ is drawn in ink. A margin call is ink too, because nothing moves.
   Topographic maps set water names in italic; that is the reason for the choice.
 - **JetBrains Mono:** loan ids, addresses and hashes. Never labels.
 - **Figures:** tabular everywhere numbers update or line up.
+
+## Mark
+
+A teal disc with one white still-water line, set left of the wordmark ("Lentic" in Source Serif 4 italic) at 28 px in
+the header, and used alone as the favicon (`web/public/lentic-mark.svg`). Chosen by the product owner on 7 Oct 2026
+from the first favicon; it is the only place the mark teal and a curved water line appear. Do not redraw it inside
+pages, recolour it to the palette, or put it on the lake tint.
 
 ## Layout
 
@@ -115,6 +123,11 @@ is drawn in ink. A margin call is ink too, because nothing moves.
 ## Components
 
 - **Buttons:** ink fill for the one primary action, ink outline for secondary ones. Links are underlined text.
+- **Navigation:** one sticky bar, 64 px, opaque paper with a hairline under it (no blur, no shadow). Every item sits
+  on the bar's centre line: the mark and wordmark, the five home sections (Policies, Try a loan, How it runs, Keys,
+  Privacy), the live ZEC/USD reading and "Lender book" as an outlined button, filled on the book. The section under the
+  middle of the viewport gets a 2 px ink underline; no other motion. Section links are `#/?s=<id>` and land below the
+  bar. Below 980 px the sections move into a Menu panel of ruled rows; below 560 px "Lender book" moves there too.
 - **Inputs:** sheet, 1 px rule, the unit (USD) inside the field on the right.
 - **Status:** a stage sentence, not a pill: "Below action stage", "Action stage: margin call", "Flood stage:
   liquidation", "Closed", "Liquidated". Only "Flood stage: liquidation" and "Liquidated" are coloured.
@@ -179,7 +192,8 @@ Product-specific:
 
 - Zcash yellow `#F3B724` and cyan `#00B2FF`: they would read as an official Zcash property.
 - Base blue `#0000FF`, Colosseum red `#C00000`, Phala acid green `#C5FF2E`: host and sponsor signatures.
-- Blue water gradients, waves, ripples, droplets, water textures. Water is one flat tint.
+- Blue water gradients, waves, ripples, droplets, water textures. Water is one flat tint. The one exception is the
+  single line inside the mark.
 - Padlocks and shields as privacy icons.
 - Green, amber and red health pills. Healthy and margin call are ink; only flood is coloured.
 - Phone mockups, lifestyle photos and four-box statistic rows (Zodl, Unchained, Firefish).

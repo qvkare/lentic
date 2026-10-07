@@ -210,7 +210,10 @@ export function FloodDrill({ loan, onReplay, still = false }: { loan: DrillLoan;
         <dl className="drill-figures">
           <div>
             <dt>ZEC/USD</dt>
-            <dd>{usd(s.price)}</dd>
+            <dd>
+              {s.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <span className="unit-sm">USD</span>
+            </dd>
           </div>
           <div>
             <dt>Loan-to-value</dt>

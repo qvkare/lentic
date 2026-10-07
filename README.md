@@ -1,3 +1,5 @@
+<img src="web/public/lentic-mark.svg" width="56" height="56" alt="Lentic">
+
 # Lentic: USDC loans against shielded ZEC that never leaves the pool
 
 > The borrower's ZEC sits in a per-loan **2-of-3 FROST** escrow (borrower · lender · TEE policy signer) inside

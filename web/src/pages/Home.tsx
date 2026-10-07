@@ -8,7 +8,6 @@ import { LoanSimulator } from "../components/LoanSimulator";
 import { PolicyStage } from "../components/PolicyStage";
 import { deployment, listLoans } from "../chain";
 import { clock, ltvAt, usd } from "../format";
-import { useReducedMotion } from "../hooks";
 import { PRICE_SOURCE, policyGauge, policyPrice } from "../policy";
 
 /** Clearly marked stand-in when the policy signer cannot be reached. */
@@ -169,7 +168,6 @@ function Keys({ keys }: { keys: [Mark, Mark, Mark] }) {
 
 export function Home() {
   const [loan, setLoan] = useState<DrillLoan | null>(null);
-  const reduced = useReducedMotion();
   const load = useCallback(() => {
     featuredLoan()
       .then(setLoan)
@@ -182,7 +180,6 @@ export function Home() {
   const priceLabel = terms.example
     ? `${usd(price)}, an example`
     : `${usd(price)}, ${PRICE_SOURCE[terms.priceKind]} at ${clock(terms.liveAt)}`;
-  const toTry = () => document.getElementById("try")?.scrollIntoView({ behavior: reduced ? "auto" : "smooth" });
 
   return (
     <main className="home">
@@ -195,9 +192,9 @@ export function Home() {
             against it; the same escrow can back a credit line, settle a trade or pass savings to an heir.
           </p>
           <div className="hero-actions">
-            <button className="btn" type="button" onClick={toTry}>
+            <a className="btn" href="#/?s=try">
               Try a loan
-            </button>
+            </a>
             <a href="#/book">Open the lender book</a>
             {loan?.loanId && <a href={`#/station/${loan.loanId}`}>Watch a station live</a>}
           </div>
@@ -218,9 +215,9 @@ export function Home() {
         </div>
       </section>
 
-      <section aria-labelledby="policies">
+      <section id="policies" aria-labelledby="policies-title">
         <div className="section-head">
-          <h2 id="policies">One escrow, four policies</h2>
+          <h2 id="policies-title">One escrow, four policies</h2>
           <p className="lede small">
             The keys and the policy signer stay the same; the policy decides what the escrow is for. Loans run today.
             Credit lines, OTC settlement and recovery are simulated here with the same keys.
@@ -229,7 +226,7 @@ export function Home() {
         <PolicyStage price={price} priceLabel={priceLabel} />
       </section>
 
-      <section aria-labelledby="try-title" id="try">
+      <section id="try" aria-labelledby="try-title">
         <div className="section-head">
           <h2 id="try-title">Try a loan</h2>
           <p className="lede small">
@@ -248,9 +245,9 @@ export function Home() {
         />
       </section>
 
-      <section aria-labelledby="how">
+      <section id="how" aria-labelledby="how-title">
         <div className="section-head">
-          <h2 id="how">How a loan runs</h2>
+          <h2 id="how-title">How a loan runs</h2>
           <p className="lede small">Each step names the keys that sign it and the chain it happens on.</p>
         </div>
         <table className="ledger steps">
@@ -291,9 +288,9 @@ export function Home() {
         <p className="note">Steps 5 and 6 are alternatives: a loan ends one way or the other.</p>
       </section>
 
-      <section aria-labelledby="keys">
+      <section id="keys" aria-labelledby="keys-title">
         <div className="section-head">
-          <h2 id="keys">Two of three keys</h2>
+          <h2 id="keys-title">Two of three keys</h2>
           <p className="lede small">
             Pick keys to see what they can do in each policy. Lentic runs only the policy signer, whose code is attested
             on Base before LoanBook accepts its reports.
@@ -302,9 +299,9 @@ export function Home() {
         <KeyPicker />
       </section>
 
-      <section aria-labelledby="private">
+      <section id="private" aria-labelledby="private-title">
         <div className="section-head">
-          <h2 id="private">What stays private</h2>
+          <h2 id="private-title">What stays private</h2>
           <p className="lede small">Shielded from the public, not from the escrow's own keyholders.</p>
         </div>
         <ExplorerViews
@@ -317,9 +314,9 @@ export function Home() {
         <VisibilityTable />
       </section>
 
-      <section aria-labelledby="who">
+      <section id="who" aria-labelledby="who-title">
         <div className="section-head">
-          <h2 id="who">Who it is for</h2>
+          <h2 id="who-title">Who it is for</h2>
           <p className="lede small">The people who already hold ZEC, or want to trade it, without giving up the pool.</p>
         </div>
         <table className="ledger audience">
@@ -344,9 +341,9 @@ export function Home() {
         </table>
       </section>
 
-      <section aria-labelledby="proven">
+      <section id="proven" aria-labelledby="proven-title">
         <div className="section-head">
-          <h2 id="proven">Proven in code</h2>
+          <h2 id="proven-title">Proven in code</h2>
           <p className="lede small">Each claim is a test that runs in CI.</p>
         </div>
         <table className="ledger proofs">
@@ -371,9 +368,9 @@ export function Home() {
         </table>
       </section>
 
-      <section aria-labelledby="limits" className="limits">
+      <section id="limits" aria-labelledby="limits-title" className="limits">
         <div className="section-head">
-          <h2 id="limits">Limits</h2>
+          <h2 id="limits-title">Limits</h2>
         </div>
         <ul>
           <li>Re-randomized FROST over RedPallas has not been audited yet.</li>
