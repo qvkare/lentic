@@ -31,6 +31,20 @@ export type Deployment = {
   startBlock: bigint;
 };
 
+/** Public RPCs cap the block range of a log query (Base Sepolia's own: 500, publicnode: 50,000). */
+const LOG_WINDOW = 45_000n;
+
+/** Runs `query` over [fromBlock, latest] in windows every common public RPC accepts. */
+async function eventsSince<T>(fromBlock: bigint, query: (from: bigint, to: bigint) => Promise<T[]>): Promise<T[]> {
+  const latest = await client.getBlockNumber();
+  const out: T[] = [];
+  for (let from = fromBlock; from <= latest; from += LOG_WINDOW) {
+    const end = from + LOG_WINDOW - 1n;
+    out.push(...(await query(from, end < latest ? end : latest)));
+  }
+  return out;
+}
+
 export function deployment(): Deployment | null {
   const d = deployments[String(CHAIN_ID)];
   if (!d || !RPC_URL) return null;
@@ -79,13 +93,16 @@ export async function readLoan(loanBook: Address, loanId: Hex): Promise<Loan | n
 
 /** Loans opened by the configured lender's vault (every loan, when no vault is configured). */
 export async function listLoans(d: Deployment): Promise<Loan[]> {
-  const opened = await client.getContractEvents({
-    address: d.loanBook,
-    abi: loanBookAbi,
-    eventName: "LoanOpened",
-    args: d.lenderVault ? { vault: d.lenderVault } : undefined,
-    fromBlock: d.startBlock,
-  });
+  const opened = await eventsSince(d.startBlock, (fromBlock, toBlock) =>
+    client.getContractEvents({
+      address: d.loanBook,
+      abi: loanBookAbi,
+      eventName: "LoanOpened",
+      args: d.lenderVault ? { vault: d.lenderVault } : undefined,
+      fromBlock,
+      toBlock,
+    }),
+  );
   const loans = await Promise.all(opened.map((e) => readLoan(d.loanBook, e.args.loanId as Hex)));
   return loans.filter((l): l is Loan => l !== null).reverse();
 }
@@ -155,11 +172,21 @@ const STAGE_REPORT: Record<Health, string> = {
 export async function keyTurns(d: Deployment, loan: Loan): Promise<KeyTurn[]> {
   const from = d.startBlock;
   const [opened, reports, funded, repaid, writtenOff] = await Promise.all([
-    client.getContractEvents({ address: d.loanBook, abi: loanBookAbi, eventName: "LoanOpened", args: { loanId: loan.loanId }, fromBlock: from }),
-    client.getContractEvents({ address: d.loanBook, abi: loanBookAbi, eventName: "HealthUpdated", args: { loanId: loan.loanId }, fromBlock: from }),
-    client.getContractEvents({ address: loan.vault, abi: lenderVaultAbi, eventName: "LoanFunded", args: { loanId: loan.loanId }, fromBlock: from }),
-    client.getContractEvents({ address: loan.vault, abi: lenderVaultAbi, eventName: "LoanRepaid", args: { loanId: loan.loanId }, fromBlock: from }),
-    client.getContractEvents({ address: loan.vault, abi: lenderVaultAbi, eventName: "LoanWrittenOff", args: { loanId: loan.loanId }, fromBlock: from }),
+    eventsSince(from, (fromBlock, toBlock) =>
+      client.getContractEvents({ address: d.loanBook, abi: loanBookAbi, eventName: "LoanOpened", args: { loanId: loan.loanId }, fromBlock, toBlock }),
+    ),
+    eventsSince(from, (fromBlock, toBlock) =>
+      client.getContractEvents({ address: d.loanBook, abi: loanBookAbi, eventName: "HealthUpdated", args: { loanId: loan.loanId }, fromBlock, toBlock }),
+    ),
+    eventsSince(from, (fromBlock, toBlock) =>
+      client.getContractEvents({ address: loan.vault, abi: lenderVaultAbi, eventName: "LoanFunded", args: { loanId: loan.loanId }, fromBlock, toBlock }),
+    ),
+    eventsSince(from, (fromBlock, toBlock) =>
+      client.getContractEvents({ address: loan.vault, abi: lenderVaultAbi, eventName: "LoanRepaid", args: { loanId: loan.loanId }, fromBlock, toBlock }),
+    ),
+    eventsSince(from, (fromBlock, toBlock) =>
+      client.getContractEvents({ address: loan.vault, abi: lenderVaultAbi, eventName: "LoanWrittenOff", args: { loanId: loan.loanId }, fromBlock, toBlock }),
+    ),
   ]);
 
   const rows: Omit<KeyTurn, "time">[] = [];

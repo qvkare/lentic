@@ -96,11 +96,26 @@ pub async fn read_loan<P: Provider>(provider: &P, loan_book: Address, loan_id: B
     }))
 }
 
+/// Public RPCs cap the block range of a log query (Base Sepolia's own: 500, publicnode: 50,000).
+const LOG_WINDOW: u64 = 45_000;
+
+/// `filter`'s logs from `from_block` to the tip, in windows every common public RPC accepts.
+async fn logs_since<P: Provider>(provider: &P, filter: Filter, from_block: u64) -> Result<Vec<alloy::rpc::types::Log>> {
+    let tip = provider.get_block_number().await?;
+    let mut out = Vec::new();
+    let mut from = from_block;
+    while from <= tip {
+        let to = tip.min(from + LOG_WINDOW - 1);
+        out.extend(provider.get_logs(&filter.clone().from_block(from).to_block(to)).await?);
+        from = to + 1;
+    }
+    Ok(out)
+}
+
 /// Every loan opened since `from_block`, oldest first (from `LoanOpened` events).
 pub async fn list_loan_ids<P: Provider>(provider: &P, loan_book: Address, from_block: u64) -> Result<Vec<B256>> {
-    let filter =
-        Filter::new().address(loan_book).event_signature(LoanBook::LoanOpened::SIGNATURE_HASH).from_block(from_block);
-    let logs = provider.get_logs(&filter).await?;
+    let filter = Filter::new().address(loan_book).event_signature(LoanBook::LoanOpened::SIGNATURE_HASH);
+    let logs = logs_since(provider, filter, from_block).await?;
     logs.into_iter().map(|log| Ok(log.log_decode::<LoanBook::LoanOpened>()?.inner.data.loanId)).collect()
 }
 
@@ -172,13 +187,9 @@ pub async fn repayments<P: Provider>(
     loan_id: B256,
     from_block: u64,
 ) -> Result<Vec<lentic_core::Repayment>> {
-    let filter = Filter::new()
-        .address(vault)
-        .event_signature(LenderVault::LoanRepaid::SIGNATURE_HASH)
-        .topic1(loan_id)
-        .from_block(from_block);
+    let filter = Filter::new().address(vault).event_signature(LenderVault::LoanRepaid::SIGNATURE_HASH).topic1(loan_id);
     let mut out = Vec::new();
-    for log in provider.get_logs(&filter).await? {
+    for log in logs_since(provider, filter, from_block).await? {
         let event = log.log_decode::<LenderVault::LoanRepaid>()?.inner.data;
         let at = match log.block_timestamp {
             Some(t) => t,

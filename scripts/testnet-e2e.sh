@@ -40,7 +40,7 @@ case "$BASE" in
     BASE_TX=""
     ;;
   sepolia)
-    RPC="${BASE_RPC:-https://sepolia.base.org}"
+    RPC="${BASE_RPC:-https://base-sepolia-rpc.publicnode.com}"
     KEYS="${SEPOLIA_KEYS:-$ROOT/dev/sepolia/keys}"
     LENDER_KEY=$(cat "$KEYS/lender.key")
     BORROWER_KEY=$(cat "$KEYS/borrower.key")

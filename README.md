@@ -45,6 +45,10 @@ Base Sepolia contracts:
 The policy signer runs with the development attestor (a mock DCAP verifier accepts its development quote); the
 amounts, the attested split and earlier runs are in [docs/testnet.md](docs/testnet.md).
 
+[lentic.qvkare.com](https://lentic.qvkare.com) reads this deployment live: the lender book, and for each loan the key
+turns recorded on Base, each linked to Basescan. Publish with `pnpm deploy:web` (`web/.env.production` names the chain
+and the RPC).
+
 ## How it works
 
 ```
