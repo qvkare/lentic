@@ -13,12 +13,34 @@ use orchard::{Anchor, Note, tree::MerklePath};
 use rand::rand_core::UnwrapErr;
 use rand::rngs::SysRng;
 use shardtree::{ShardTree, store::memory::MemoryShardStore};
+use zcash_client_backend::proto::compact_formats::CompactOrchardAction;
 use zcash_note_encryption::try_note_decryption;
 use zcash_protocol::memo::Memo;
 
 use crate::Error;
 
 type Tree = ShardTree<MemoryShardStore<MerkleHashOrchard, u32>, 32, 16>;
+
+/// The compact actions of a fresh Ironwood bundle paying `value` to `recipient` (with the
+/// builder's dummy padding), as lightwalletd serves them in a compact block.
+pub fn compact_payment(recipient: orchard::Address, value: u64) -> Result<Vec<CompactOrchardAction>, Error> {
+    let version = BundleVersion::ironwood_v3();
+    let mut builder = orchard::builder::Builder::new(
+        orchard::builder::BundleType::DEFAULT,
+        version,
+        version.default_flags(),
+        Anchor::empty_tree(),
+    )
+    .map_err(|e| Error::Builder(format!("{e:?}")))?;
+    builder
+        .add_output(None, recipient, NoteValue::from_raw(value), Memo::Empty.encode().into_bytes())
+        .map_err(|e| Error::Builder(format!("{e:?}")))?;
+    let (bundle, _) = builder
+        .build::<i64>(&mut UnwrapErr(SysRng))
+        .map_err(|e| Error::Builder(format!("{e:?}")))?
+        .ok_or_else(|| Error::Builder("empty bundle".into()))?;
+    Ok(bundle.actions().iter().map(CompactOrchardAction::from).collect())
+}
 
 /// An in-memory Ironwood commitment tree.
 pub struct SimChain {

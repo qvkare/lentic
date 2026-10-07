@@ -138,6 +138,7 @@ fn show(bundle: &ShareBundle, network: ZcashNetwork) -> Result<()> {
         "role": bundle.role,
         "network": network,
         "escrowAddress": keys::encode_unified_address(&params, keys::escrow_address(&fvk)),
+        "escrowAddressR0": keys::encode_unified_address_r0(&params, keys::escrow_address(&fvk)),
         "ufvk": keys::encode_ufvk(&params, &fvk)?,
         "escrowFvkHash": escrow_fvk_hash(&fvk.to_bytes()),
         "fingerprint": fvk::fvk_fingerprint(&fvk),

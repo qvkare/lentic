@@ -74,7 +74,7 @@ pub struct OutputView {
     pub value: u64,
 }
 
-fn rng() -> UnwrapErr<SysRng> {
+pub(crate) fn rng() -> UnwrapErr<SysRng> {
     UnwrapErr(SysRng)
 }
 
@@ -88,17 +88,45 @@ pub fn build_escrow_spend<P: Parameters>(
     inputs: Vec<EscrowInput>,
     payments: &[Payment],
 ) -> Result<EscrowSpend, Error> {
+    build_spend(params, target_height, fvk, anchor, inputs, payments, None)
+}
+
+/// Builds a v6 transaction spending `inputs` to `payments`. Whatever is left after the
+/// ZIP 317 fee goes to `change` (a test wallet's own address); with no change address the
+/// inputs must exactly cover the payments plus the fee.
+pub fn build_spend<P: Parameters>(
+    params: P,
+    target_height: BlockHeight,
+    fvk: &FullViewingKey,
+    anchor: Anchor,
+    inputs: Vec<EscrowInput>,
+    payments: &[Payment],
+    change: Option<orchard::Address>,
+) -> Result<EscrowSpend, Error> {
     if inputs.is_empty() || payments.is_empty() {
-        return Err(Error::Builder("an escrow spend needs at least one input and one payment".into()));
+        return Err(Error::Builder("a spend needs at least one input and one payment".into()));
     }
-    let fee = zip317_fee(inputs.len(), payments.len());
     let total_in: u64 = inputs.iter().map(|i| i.note.value().inner()).sum();
     let total_out: u64 = payments.iter().map(|p| p.value).sum();
-    if total_in != total_out + fee {
-        return Err(Error::Builder(format!(
-            "unbalanced escrow spend: inputs {total_in} != payments {total_out} + fee {fee}"
-        )));
-    }
+    let exact_fee = zip317_fee(inputs.len(), payments.len());
+    let mut payments = payments.to_vec();
+    let fee = match change {
+        _ if total_in == total_out + exact_fee => exact_fee,
+        Some(change) => {
+            let fee = zip317_fee(inputs.len(), payments.len() + 1);
+            let left = total_in.checked_sub(total_out + fee).filter(|v| *v > 0).ok_or_else(|| {
+                Error::Builder(format!("insufficient funds: inputs {total_in} < payments {total_out} + fee {fee}"))
+            })?;
+            payments.push(Payment::new(change, left));
+            fee
+        }
+        None => {
+            return Err(Error::Builder(format!(
+                "unbalanced escrow spend: inputs {total_in} != payments {total_out} + fee {exact_fee}"
+            )));
+        }
+    };
+    let payments = &payments[..];
 
     let mut builder = Builder::new(
         params,
@@ -162,6 +190,24 @@ pub fn spends_to_sign(pczt: &Pczt) -> Result<Vec<SpendToSign>, Error> {
         })
         .map_err(|e| pczt_err("verifier", e))?;
     Ok(found)
+}
+
+/// The nullifier of every Ironwood action's spend, by action index (dummy spends included;
+/// callers match them against the notes they know).
+pub fn spend_nullifiers(pczt: &Pczt) -> Result<Vec<(usize, orchard::note::Nullifier)>, Error> {
+    let mut found = Vec::new();
+    Verifier::new(pczt.clone())
+        .with_ironwood::<std::convert::Infallible, _>(|bundle| {
+            found.extend(bundle.actions().iter().enumerate().map(|(i, a)| (i, *a.spend().nullifier())));
+            Ok(())
+        })
+        .map_err(|e| pczt_err("verifier", e))?;
+    Ok(found)
+}
+
+/// The expiry height of the transaction a PCZT will become.
+pub fn expiry_height(pczt: &Pczt) -> u32 {
+    *pczt.global().expiry_height()
 }
 
 /// Non-zero Ironwood outputs, each checked against its note commitment so the plaintext

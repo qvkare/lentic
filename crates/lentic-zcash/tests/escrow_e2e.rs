@@ -50,6 +50,16 @@ fn escrow_address_and_ufvk_round_trip() {
     let params = regtest();
     let ua = keys::encode_unified_address(&params, keys::escrow_address(&loan.fvk));
     assert_eq!(keys::decode_orchard_receiver(&params, &ua).unwrap(), keys::escrow_address(&loan.fvk));
+    // The revision 0 encoding (what older wallets and faucets accept) names the same receiver.
+    let r0 = keys::encode_unified_address_r0(
+        &zcash_protocol::consensus::Network::TestNetwork,
+        keys::escrow_address(&loan.fvk),
+    );
+    assert!(r0.starts_with("utest1"), "{r0}");
+    assert_eq!(
+        keys::decode_orchard_receiver(&zcash_protocol::consensus::Network::TestNetwork, &r0).unwrap(),
+        keys::escrow_address(&loan.fvk)
+    );
     let ufvk = keys::encode_ufvk(&params, &loan.fvk).unwrap();
     assert_eq!(keys::decode_ufvk(&params, &ufvk).unwrap().to_bytes(), loan.fvk.to_bytes());
 }

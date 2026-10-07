@@ -16,11 +16,24 @@ pub fn escrow_address(fvk: &FullViewingKey) -> orchard::Address {
     fvk.address_at(0u32, Scope::External)
 }
 
-/// Encodes an Orchard address as a unified address for `params`.
+/// Encodes an Orchard address as a unified address for `params` (ZIP 316 revision 2,
+/// `zu1…` / `zutest1…`).
 pub fn encode_unified_address<P: Parameters>(params: &P, addr: orchard::Address) -> String {
     UnifiedAddress::from_receivers(Some(addr), None, None, None, None)
         .expect("an Orchard receiver is a valid UA")
         .encode(params)
+}
+
+/// The same address in the original revision 0 encoding (`u1…` / `utest1…`), for wallets,
+/// faucets and explorers that do not read revision 2 yet.
+pub fn encode_unified_address_r0<P: Parameters>(params: &P, addr: orchard::Address) -> String {
+    use zcash_address::unified::{self, Encoding, Revision, Uitem};
+    unified::Address::try_from_items(
+        Revision::R0,
+        vec![Uitem::Data(unified::Receiver::Orchard(addr.to_raw_address_bytes()))],
+    )
+    .expect("an Orchard receiver is a valid UA")
+    .encode(&params.network_type())
 }
 
 /// Decodes a unified address and returns its Orchard receiver (the only kind Lentic pays to).

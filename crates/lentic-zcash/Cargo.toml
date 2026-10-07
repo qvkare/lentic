@@ -9,7 +9,7 @@ license.workspace = true
 [features]
 default = []
 # Offline helpers that fabricate an Ironwood deposit into an escrow (tests, local demo).
-sim = ["dep:shardtree"]
+sim = []
 
 [dependencies]
 lentic-core = { workspace = true }
@@ -20,10 +20,11 @@ orchard = { workspace = true, features = ["circuit", "multicore", "std", "zeroiz
 zcash_primitives = { workspace = true, features = ["std", "circuits", "multicore"] }
 zcash_protocol = { workspace = true, features = ["std", "local-consensus"] }
 zcash_keys = { workspace = true, features = ["std", "orchard", "sapling", "unstable-frost"] }
+zcash_address = { workspace = true }
 zcash_client_backend = { workspace = true, features = ["orchard", "lightwalletd-tonic-tls-webpki-roots", "lightwalletd-tonic-transport"] }
 zcash_note_encryption = { workspace = true }
 incrementalmerkletree = { workspace = true }
-shardtree = { workspace = true, optional = true }
+shardtree = { workspace = true }
 pasta_curves = { workspace = true }
 ff = { workspace = true }
 rand = { workspace = true }
@@ -33,9 +34,12 @@ serde = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-shardtree = { workspace = true }
 tokio = { workspace = true }
 
 [[test]]
 name = "escrow_e2e"
+required-features = ["sim"]
+
+[[test]]
+name = "scan_e2e"
 required-features = ["sim"]
