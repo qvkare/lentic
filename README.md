@@ -199,12 +199,9 @@ lentic-watch escrow build|finalize
 - The escrow's viewing key is not ZIP 2005 quantum-recoverable (see above).
 - Lending is licensed: Lentic is built for commercial borrowers and professional lenders, outside the EU.
 
-## Prior work
+## Built on
 
-All code in this repository was written for this hackathon, starting on 6 Oct 2026 (first commit `492f5fa`). It
-reuses no code from the team's earlier open-source projects (Verdict Layer, OpenGrant, CovenantOS, linea-mcp). It
-builds on open-source libraries: the librustzcash crates, `orchard`, `reddsa`/`frost`, alloy, OpenZeppelin
-Contracts and Foundry.
+The librustzcash crates, `orchard`, `reddsa`/`frost`, alloy, OpenZeppelin Contracts and Foundry.
 
 ## License
 
