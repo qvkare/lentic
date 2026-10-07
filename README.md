@@ -60,7 +60,7 @@ frost-core only), and signing with a PCZT-supplied randomizer uses an API frost-
 | `crates/lentic-signer` | Borrower/lender CLI: DKG, share bundles, escrow keys, PCZT inspect/sign, `terms-hash`, offline `demo` |
 | `crates/lentic-watch` | Chain CLI: server info, Ironwood tree state, prove, extract, broadcast |
 | `contracts/` | Foundry: `LenderVault`, `LoanBook`, `AttestationVerifier` + `TdxQuote`, `LoanTermsLib`; mocks; deploy scripts |
-| `web/` | Vite + React + viem: a home page led by the flood drill, the lender book and one gauge station per loan. Design direction in [web/DESIGN.md](web/DESIGN.md) |
+| `web/` | Vite + React + viem: a home page (the flood drill, four escrow policies as simulations, a loan simulator, a key picker), the lender book and one gauge station per loan. Design direction in [web/DESIGN.md](web/DESIGN.md) |
 | `deploy/` | Policy signer Dockerfile, local docker-compose, dstack app compose |
 | `scripts/` | `export-abis.mjs`, `dev-deploy.sh`, `smoke.sh`, `screens.mjs`, `design-check.mjs` |
 

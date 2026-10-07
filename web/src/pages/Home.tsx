@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { ExplorerViews } from "../components/ExplorerViews";
 import { FloodDrill, type DrillLoan } from "../components/FloodDrill";
+import { KeyPicker } from "../components/KeyPicker";
 import { VisibilityTable } from "../components/Ledgers";
+import { LoanSimulator } from "../components/LoanSimulator";
+import { PolicyStage } from "../components/PolicyStage";
 import { deployment, listLoans } from "../chain";
-import { ltvAt } from "../format";
-import { policyGauge, policyPrice } from "../policy";
+import { clock, ltvAt, usd } from "../format";
+import { useReducedMotion } from "../hooks";
+import { PRICE_SOURCE, policyGauge, policyPrice } from "../policy";
 
 /** Clearly marked stand-in when the policy signer cannot be reached. */
 const EXAMPLE: DrillLoan = {
@@ -53,6 +58,8 @@ async function featuredLoan(): Promise<DrillLoan> {
     liveAt: price.at,
     priceKind: price.kind,
     example: false,
+    termsHash: l.termsHash,
+    vault: l.vault,
   };
 }
 
@@ -96,26 +103,31 @@ const STEPS: { title: string; body: string; keys: [Mark, Mark, Mark]; chain: str
   },
 ];
 
-const PAIRS: { keys: [Mark, Mark, Mark]; who: string; can: string }[] = [
+const AUDIENCE: { who: string; does: string; policy: string }[] = [
   {
-    keys: ["acted", "acted", "idle"],
-    who: "Borrower and lender",
-    can: "Anything they agree on, without the policy signer. A cooperative close.",
+    who: "Long-term ZEC holders",
+    does: "Borrow USDC for a tax bill, a house deposit or a business without selling ZEC or leaving the shielded pool.",
+    policy: "Loan, credit line",
   },
   {
-    keys: ["idle", "acted", "acted"],
-    who: "Lender and policy signer",
-    can: "Liquidate, only at flood stage, with the split the policy signer computes from the live price.",
+    who: "Lenders and credit funds",
+    does: "Lend USDC from their own vault against collateral they can check on Zcash and never move alone.",
+    policy: "Loan",
   },
   {
-    keys: ["acted", "idle", "acted"],
-    who: "Borrower and policy signer",
-    can: "Return the collateral, once repayment is seen on Base or if the USDC never arrived.",
+    who: "Zcash treasuries",
+    does: "Pay grants and salaries in USDC while the treasury stays in ZEC.",
+    policy: "Loan, credit line",
   },
   {
-    keys: ["idle", "idle", "idle"],
-    who: "Any one key, Lentic included",
-    can: "Nothing.",
+    who: "OTC desks",
+    does: "Settle ZEC against USDC between parties who do not trust each other, with no custodian and no bridge.",
+    policy: "OTC settlement",
+  },
+  {
+    who: "Long-term savers",
+    does: "Leave an heir a way to recover the ZEC without ever sharing a seed phrase.",
+    policy: "Recovery",
   },
 ];
 
@@ -157,6 +169,7 @@ function Keys({ keys }: { keys: [Mark, Mark, Mark] }) {
 
 export function Home() {
   const [loan, setLoan] = useState<DrillLoan | null>(null);
+  const reduced = useReducedMotion();
   const load = useCallback(() => {
     featuredLoan()
       .then(setLoan)
@@ -164,19 +177,28 @@ export function Home() {
   }, []);
   useEffect(load, [load]);
 
+  const terms = loan ?? EXAMPLE;
+  const price = terms.livePrice;
+  const priceLabel = terms.example
+    ? `${usd(price)}, an example`
+    : `${usd(price)}, ${PRICE_SOURCE[terms.priceKind]} at ${clock(terms.liveAt)}`;
+  const toTry = () => document.getElementById("try")?.scrollIntoView({ behavior: reduced ? "auto" : "smooth" });
+
   return (
     <main className="home">
       <section className="hero" aria-labelledby="claim">
         <div className="hero-copy">
-          <h1 id="claim">The collateral never leaves the pool.</h1>
+          <h1 id="claim">ZEC that works without leaving the pool.</h1>
           <p className="hero-lede">
-            Borrow USDC on Base against ZEC that stays shielded on Zcash, in an escrow only two of three keys can move:
-            the borrower's, the lender's and an attested policy signer's. Nothing is wrapped, bridged or held by Lentic.
+            Lentic is a shielded escrow on Zcash that only two of three keys can move: yours, a counterparty's and an
+            attested policy signer's. The policy decides what the escrow is for. The first one lends USDC on Base
+            against it; the same escrow can back a credit line, settle a trade or pass savings to an heir.
           </p>
           <div className="hero-actions">
-            <a className="btn" href="#/book">
-              Open the lender book
-            </a>
+            <button className="btn" type="button" onClick={toTry}>
+              Try a loan
+            </button>
+            <a href="#/book">Open the lender book</a>
             {loan?.loanId && <a href={`#/station/${loan.loanId}`}>Watch a station live</a>}
           </div>
         </div>
@@ -194,6 +216,36 @@ export function Home() {
             <p className="quiet">Taking a reading from the policy signer.</p>
           )}
         </div>
+      </section>
+
+      <section aria-labelledby="policies">
+        <div className="section-head">
+          <h2 id="policies">One escrow, four policies</h2>
+          <p className="lede small">
+            The keys and the policy signer stay the same; the policy decides what the escrow is for. Loans run today.
+            Credit lines, OTC settlement and recovery are simulated here with the same keys.
+          </p>
+        </div>
+        <PolicyStage price={price} priceLabel={priceLabel} />
+      </section>
+
+      <section aria-labelledby="try-title" id="try">
+        <div className="section-head">
+          <h2 id="try-title">Try a loan</h2>
+          <p className="lede small">
+            Lock ZEC, choose what to borrow, then move the price. The gauge is the one every loan gets.
+          </p>
+        </div>
+        <LoanSimulator
+          price={price}
+          priceLabel={priceLabel}
+          terms={{
+            actionBps: terms.actionBps,
+            floodBps: terms.floodBps,
+            haircutBps: terms.haircutBps,
+            penaltyBps: terms.penaltyBps,
+          }}
+        />
       </section>
 
       <section aria-labelledby="how">
@@ -243,46 +295,53 @@ export function Home() {
         <div className="section-head">
           <h2 id="keys">Two of three keys</h2>
           <p className="lede small">
-            Lentic runs only the policy signer, so Lentic alone can do nothing. Its code is attested on Base before
-            LoanBook accepts its reports.
+            Pick keys to see what they can do in each policy. Lentic runs only the policy signer, whose code is attested
+            on Base before LoanBook accepts its reports.
           </p>
         </div>
-        <table className="ledger pairs">
-          <thead>
-            <tr>
-              <th scope="col">Together</th>
-              <th scope="col" className="key-col">
-                Borrower
-              </th>
-              <th scope="col" className="key-col">
-                Lender
-              </th>
-              <th scope="col" className="key-col">
-                Policy signer
-              </th>
-              <th scope="col">Can</th>
-            </tr>
-          </thead>
-          <tbody>
-            {PAIRS.map((p) => (
-              <tr key={p.who}>
-                <th scope="row" data-label="Together">
-                  {p.who}
-                </th>
-                <Keys keys={p.keys} />
-                <td data-label="Can">{p.can}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <KeyPicker />
       </section>
 
       <section aria-labelledby="private">
         <div className="section-head">
           <h2 id="private">What stays private</h2>
-          <p className="lede small">Shielded from the public, not from the loan's own parties.</p>
+          <p className="lede small">Shielded from the public, not from the escrow's own keyholders.</p>
         </div>
+        <ExplorerViews
+          loan={
+            loan && loan.loanId && loan.termsHash && loan.vault
+              ? { loanId: loan.loanId, termsHash: loan.termsHash, vault: loan.vault, debt: loan.debt }
+              : null
+          }
+        />
         <VisibilityTable />
+      </section>
+
+      <section aria-labelledby="who">
+        <div className="section-head">
+          <h2 id="who">Who it is for</h2>
+          <p className="lede small">The people who already hold ZEC, or want to trade it, without giving up the pool.</p>
+        </div>
+        <table className="ledger audience">
+          <thead>
+            <tr>
+              <th scope="col">Who</th>
+              <th scope="col">What they do with Lentic</th>
+              <th scope="col">Policy</th>
+            </tr>
+          </thead>
+          <tbody>
+            {AUDIENCE.map((a) => (
+              <tr key={a.who}>
+                <th scope="row" data-label="Who">
+                  {a.who}
+                </th>
+                <td data-label="What they do">{a.does}</td>
+                <td data-label="Policy">{a.policy}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </section>
 
       <section aria-labelledby="proven">
@@ -318,6 +377,10 @@ export function Home() {
         </div>
         <ul>
           <li>Re-randomized FROST over RedPallas has not been audited yet.</li>
+          <li>
+            Credit lines, OTC settlement and recovery are simulations: the escrow, its keys and the policy signer exist;
+            their rules are not written yet.
+          </li>
           <li>The gauge uses the collateral committed in the terms until the escrow watcher reads the escrow itself.</li>
           <li>ZEC/USD is a median of five exchanges until an authenticated oracle is wired in.</li>
           <li>Lending is licensed: Lentic is built for commercial borrowers and professional lenders, outside the EU.</li>

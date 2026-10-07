@@ -31,6 +31,9 @@ export type DrillLoan = {
   priceKind: PriceKind;
   /** True when the policy signer could not be reached and a marked example is shown. */
   example: boolean;
+  /** On-chain facts of the loan, for the privacy views. */
+  termsHash?: string;
+  vault?: string;
 };
 
 type Phase = "live" | "falling" | "action" | "flood" | "keys" | "split";
