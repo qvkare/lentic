@@ -5,6 +5,7 @@ web/.wrangler/
 contracts/out/
 contracts/cache/
 contracts/broadcast/
+contracts/deployments/local/
 dev/
 loan-shares/
 *.share.json

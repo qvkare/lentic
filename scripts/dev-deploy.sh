@@ -4,6 +4,8 @@
 # `lentic-policy serve` reads by default.
 #   RPC (default http://127.0.0.1:8546) must be an anvil with the default mnemonic.
 #   DEV_DIR (default dev/) receives the terms, the loans and loan.local.json.
+#   DEPLOYMENT_FILE (default deployments/31337.json, under contracts/) receives the addresses and
+#   POLICY_MEASUREMENT pins another policy-signer measurement (scripts/dstack-sim.sh).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -16,9 +18,10 @@ DEV="${DEV_DIR:-$ROOT/dev}"
 cd "$ROOT/contracts"
 forge build >/dev/null
 forge script script/DeployLocal.s.sol:DeployLocal --rpc-url "$RPC" --broadcast --slow >/dev/null
-DEP="$ROOT/contracts/deployments/31337.json"
+DEP="$ROOT/contracts/${DEPLOYMENT_FILE:-deployments/31337.json}"
 cd "$ROOT"
-node scripts/export-abis.mjs
+# Only the shared local deployment goes into the web app's generated addresses.
+if [ -z "${DEPLOYMENT_FILE:-}" ]; then node scripts/export-abis.mjs; fi
 
 json() { python3 -c "import json,sys; print(json.load(open('$DEP'))['$1'])"; }
 VAULT=$(json lenderVault)

@@ -84,6 +84,7 @@ Base: LoanBook {termsHash, health, attestationHash} creates the lenders' LenderV
 | Claim | Evidence |
 |---|---|
 | Two loans on Zcash testnet and Base Sepolia: deposits, a co-signed liquidation and a co-signed close mined, outcomes and attestation hashes in LoanBook | [Running on testnet](#running-on-testnet), `scripts/testnet-e2e.sh` |
+| The production attestor against dstack's guest-agent simulator: the Base key comes from GetKey, the TDX quote from GetQuote binds it, AttestationVerifier pins the quote's measurement and registers the key, a development quote for the same key is refused, and the key then writes to LoanBook | `scripts/dstack-sim.sh` (CI job `dstack-sim`) |
 | Re-randomized FROST (reddsa 0.5.2 / frost-rerandomized 3.0) signatures verify as Ironwood spend-auth signatures under `rk = ak + [α]G`, α from the PCZT | `lentic-frost` tests, `escrow_e2e`, testnet |
 | Sign first, then set a newer anchor and witness, prove, extract: the sighash does not change | `liquidation_by_lender_and_policy_with_anchor_refresh`, every testnet spend |
 | The escrow watcher's anchor equals the server's Ironwood tree root; tree size checked after every block | `scan_e2e`, `lentic-watch scan` (`anchorMatchesServer`) |
@@ -94,8 +95,9 @@ Base: LoanBook {termsHash, health, attestationHash} creates the lenders' LenderV
 | `termsHash` identical in Rust, Solidity and `cast` | `contracts/test/vectors/terms_hash.txt` |
 | Interest accrues on the outstanding principal, repayments booked principal first | `interest_accrues_only_on_outstanding_principal` |
 
-**Not verified yet:** a real TDX quote through Automata DCAP on Base (needs a dstack CVM; the testnet runs use the
-development attestor), the policy image build for `linux/amd64`, a mainnet loan.
+**Not verified yet:** a real TDX quote through Automata DCAP on Base (needs a dstack CVM: the simulator replays a
+captured quote whose signature breaks when it patches REPORTDATA, and the testnet runs use the development
+attestor), the policy image build for `linux/amd64`, a mainnet loan.
 
 **Upstream notes.** The RedPallas FROST ciphersuite was removed from reddsa `main` on 2026-09-25 while it moves to
 the `frost` repo ([reddsa#280](https://github.com/ZcashFoundation/reddsa/pull/280),
@@ -120,8 +122,8 @@ policy signer over its API. The escrow's viewing key is derived from a borrower 
 | `crates/lentic-watch` | Chain CLI: scan a viewing key, build and finalize escrow spends, a testnet wallet, broadcast |
 | `contracts/` | Foundry: `LoanBook` (creates vaults), `LenderVault`, `AttestationVerifier` + `TdxQuote`, `LoanTermsLib`; mocks; deploy scripts |
 | `web/` | Vite + React + viem: home page (policy simulations, a loan simulator, a key picker), the lender book, one gauge station per loan. Design in [web/DESIGN.md](web/DESIGN.md) |
-| `deploy/` | Policy signer Dockerfile, local docker-compose, dstack app compose |
-| `scripts/` | `testnet-e2e.sh`, `deploy-sepolia.sh`, `dev-deploy.sh`, `smoke.sh`, `export-abis.mjs`, `screens.mjs`, `design-check.mjs` |
+| `deploy/` | Policy signer Dockerfile, local docker-compose, dstack app compose, dstack simulator image |
+| `scripts/` | `testnet-e2e.sh`, `deploy-sepolia.sh`, `dev-deploy.sh`, `smoke.sh`, `dstack-sim.sh`, `export-abis.mjs`, `screens.mjs`, `design-check.mjs` |
 
 ## Quickstart
 
@@ -179,6 +181,13 @@ Everything offline on throwaway ports, as CI does:
 pnpm smoke
 ```
 
+The policy signer's production attestation path (`--attestor dstack`) against dstack's guest-agent simulator, in
+Docker (the first run builds the simulator from dstack v0.6.0, a few minutes):
+
+```bash
+pnpm dstack:sim
+```
+
 Tests: `pnpm test` (Rust workspace incl. the Ironwood end-to-end flows, then Foundry). Design: `pnpm design:check`
 and `pnpm screens`.
 
@@ -215,8 +224,9 @@ lentic-watch escrow build|finalize
 
 ## Limits
 
-- The policy signer has not yet run inside a TDX CVM; on testnet it runs with the development attestor, and the
-  Base Sepolia deployment accepts its development quote through a mock DCAP verifier.
+- The policy signer has not yet run inside a TDX CVM. Its dstack path runs against dstack's simulator, whose quote
+  does not verify and whose keys come from fixtures rather than the dstack KMS; on testnet it runs with the
+  development attestor, and the Base Sepolia deployment accepts its development quote through a mock DCAP verifier.
 - Party routes (gauge, escrow, plan) are unauthenticated: run the signer where only the parties reach it.
 - The price is a median of five exchanges until an authenticated oracle is wired in.
 - The escrow's viewing key is not ZIP 2005 quantum-recoverable (see above).

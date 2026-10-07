@@ -13,6 +13,9 @@ import {MockUSDC} from "../src/mocks/MockUSDC.sol";
 /// @notice Full local stack on anvil (chain 31337) with the default anvil accounts:
 ///         #0 deployer + Lentic fee recipient, #1 lender, #2 borrower, #3 dev policy signer.
 ///         Writes deployments/31337.json for the services and the web app.
+/// @dev Optional env, for scripts/dstack-sim.sh: POLICY_MEASUREMENT pins another policy-signer
+///      measurement (no development quote is registered then: the signer registers its own
+///      quote), DEPLOYMENT_FILE writes the addresses elsewhere under deployments/.
 contract DeployLocal is Script {
     uint256 constant DEPLOYER_KEY = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
     uint256 constant LENDER_KEY = 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d;
@@ -26,15 +29,18 @@ contract DeployLocal is Script {
         address deployer = vm.addr(DEPLOYER_KEY);
         address lender = vm.addr(LENDER_KEY);
         address borrower = vm.addr(BORROWER_KEY);
-        address policy = vm.addr(POLICY_KEY);
-        uint256 startBlock = block.number;
+        bytes32 measurement = vm.envOr("POLICY_MEASUREMENT", DevQuote.measurement());
+        bool devAttestor = measurement == DevQuote.measurement();
+        string memory o = "deployments";
+        vm.serializeUint(o, "chainId", block.chainid);
+        vm.serializeUint(o, "startBlock", block.number);
 
         vm.startBroadcast(DEPLOYER_KEY);
         MockUSDC usdc = new MockUSDC();
         MockDcapAttestation dcap = new MockDcapAttestation();
-        AttestationVerifier verifier = new AttestationVerifier(dcap, DevQuote.measurement(), 30 days);
+        AttestationVerifier verifier = new AttestationVerifier(dcap, measurement, 30 days);
         LoanBook book = new LoanBook(verifier, usdc, deployer, 1_000);
-        verifier.register(DevQuote.build(policy, DEV_CONFIG_HASH));
+        if (devAttestor) verifier.register(DevQuote.build(vm.addr(POLICY_KEY), DEV_CONFIG_HASH));
         usdc.mint(lender, 1_000_000e6);
         usdc.mint(borrower, 50_000e6);
         vm.stopBroadcast();
@@ -45,9 +51,6 @@ contract DeployLocal is Script {
         vault.deposit(500_000e6, lender);
         vm.stopBroadcast();
 
-        string memory o = "deployments";
-        vm.serializeUint(o, "chainId", block.chainid);
-        vm.serializeUint(o, "startBlock", startBlock);
         vm.serializeAddress(o, "usdc", address(usdc));
         vm.serializeAddress(o, "dcap", address(dcap));
         vm.serializeAddress(o, "attestationVerifier", address(verifier));
@@ -55,10 +58,14 @@ contract DeployLocal is Script {
         vm.serializeAddress(o, "lenderVault", address(vault));
         vm.serializeAddress(o, "feeRecipient", deployer);
         vm.serializeAddress(o, "lender", lender);
-        vm.serializeAddress(o, "borrower", borrower);
-        vm.serializeBytes32(o, "devConfigHash", DEV_CONFIG_HASH);
-        string memory json = vm.serializeAddress(o, "policySigner", policy);
-        vm.writeJson(json, "./deployments/31337.json");
+        if (devAttestor) {
+            vm.serializeBytes32(o, "devConfigHash", DEV_CONFIG_HASH);
+            vm.serializeAddress(o, "policySigner", vm.addr(POLICY_KEY));
+        } else {
+            vm.serializeBytes32(o, "policyMeasurement", measurement);
+        }
+        string memory json = vm.serializeAddress(o, "borrower", borrower);
+        vm.writeJson(json, vm.envOr("DEPLOYMENT_FILE", string("./deployments/31337.json")));
 
         console2.log("LoanBook     ", address(book));
         console2.log("LenderVault  ", address(vault));

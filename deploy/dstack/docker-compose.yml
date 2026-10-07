@@ -18,6 +18,7 @@
 #   3. read the measurement (`lentic-policy measurement --attestor dstack` in the CVM) and run
 #      contracts/script/Deploy.s.sol from the same deployer at nonce N;
 #   4. submit GET /v1/attestation's quote to AttestationVerifier.register.
+# Without TDX hardware, scripts/dstack-sim.sh runs the same attestor against dstack's simulator.
 services:
   lentic-policy:
     image: ghcr.io/qvkare/lentic-policy@sha256:REPLACE_WITH_RELEASE_DIGEST
