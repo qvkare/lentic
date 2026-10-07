@@ -139,7 +139,14 @@ async fn serve(args: ServeArgs) -> Result<()> {
         }
     };
     let deployment = Deployment::load(&args.deployment)?;
+    // A fresh pending nonce for every transaction: alloy's default cached nonce manager counts a
+    // nonce for a send that fails before broadcast (a reverting gas estimate), and every later
+    // transaction from the key then waits behind the gap.
     let provider: DynProvider = ProviderBuilder::new()
+        .disable_recommended_fillers()
+        .with_gas_estimation()
+        .with_simple_nonce_management()
+        .fetch_chain_id()
         .wallet(EthereumWallet::from(signer.clone()))
         .connect_http(args.base_rpc.parse().context("BASE_RPC_URL")?)
         .erased();
@@ -178,6 +185,7 @@ async fn serve(args: ServeArgs) -> Result<()> {
         dkg: dkg::Dkg::with_shares(shares),
         cosign: cosign::Cosign::with_intents(intents),
         zcash: Default::default(),
+        base_writes: Default::default(),
     });
     info!(
         signer = %state.signer_address,

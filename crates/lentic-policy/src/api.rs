@@ -62,9 +62,31 @@ pub struct AppState {
     pub cosign: Cosign,
     /// The lightwalletd connection used for scanning (the first configured server).
     pub zcash: Mutex<Option<Client>>,
+    /// One LoanBook transaction at a time, since each takes the key's pending nonce.
+    pub base_writes: Mutex<()>,
 }
 
 impl AppState {
+    /// Writes a loan's health (and an outcome's attestation hash) to LoanBook from the signer key.
+    pub async fn update_health(
+        &self,
+        loan_id: B256,
+        health: Health,
+        oracle_round: u64,
+        attestation_hash: B256,
+    ) -> anyhow::Result<B256> {
+        let _one_at_a_time = self.base_writes.lock().await;
+        lentic_base::update_health(
+            &self.provider,
+            self.deployment.loan_book,
+            loan_id,
+            health,
+            oracle_round,
+            attestation_hash,
+        )
+        .await
+    }
+
     pub async fn zcash_client(&self) -> anyhow::Result<Client> {
         let mut slot = self.zcash.lock().await;
         if slot.is_none() {
@@ -504,14 +526,6 @@ pub struct HealthRequest {
 }
 
 async fn set_health(State(s): State<Shared>, Path(id): Path<B256>, Json(req): Json<HealthRequest>) -> ApiResult<Value> {
-    let tx = lentic_base::update_health(
-        &s.provider,
-        s.deployment.loan_book,
-        id,
-        req.health,
-        req.oracle_round,
-        req.attestation_hash,
-    )
-    .await?;
+    let tx = s.update_health(id, req.health, req.oracle_round, req.attestation_hash).await?;
     Ok(Json(json!({ "tx": tx })))
 }

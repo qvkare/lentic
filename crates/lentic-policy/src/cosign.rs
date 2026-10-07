@@ -221,15 +221,7 @@ impl Cosign {
             && !view.health.is_terminal()
             && round >= view.oracle_round
         {
-            let tx = lentic_base::update_health(
-                &s.provider,
-                s.deployment.loan_book,
-                loan_id,
-                health,
-                round,
-                intent.attestation.hash,
-            )
-            .await?;
+            let tx = s.update_health(loan_id, health, round, intent.attestation.hash).await?;
             tracing::info!(loan = %loan_id, ?health, %tx, "outcome recorded in LoanBook");
             intent.reported = Some(tx);
         }

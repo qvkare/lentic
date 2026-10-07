@@ -266,15 +266,7 @@ impl Book {
                     }
                     let settling = s.cosign.intent(&held.loan_id).await.is_some_and(|i| i.reported.is_none());
                     if s.report_health && !settling && health != view.health && at > view.oracle_round {
-                        let tx = lentic_base::update_health(
-                            &s.provider,
-                            s.deployment.loan_book,
-                            held.loan_id,
-                            health,
-                            at,
-                            B256::ZERO,
-                        )
-                        .await?;
+                        let tx = s.update_health(held.loan_id, health, at, B256::ZERO).await?;
                         info!(loan = %held.loan_id, ?health, %tx, "health reported to LoanBook");
                     }
                 }
