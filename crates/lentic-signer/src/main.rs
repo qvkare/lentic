@@ -1,6 +1,13 @@
-//! `lentic-signer`: borrower / lender side of a loan's FROST group.
+//! `lentic-signer`: the borrower's or the lender's side of a loan's FROST group.
 //!
-//! Infrastructure commands (networked DKG and signing over frostd come next):
+//! With a policy signer:
+//!   base-key    make a test Base key (the party's identity in the DKG and its approvals)
+//!   dkg         create a session, or join one as borrower or lender (through the signer's
+//!               relay; round-2 packages are sealed to their recipients)
+//!   terms       approve terms (EIP-191) and register them with the policy signer
+//!   cosign      the whole escrow spend for a close, refund or liquidation: the signer's
+//!               plan, PCZT, two FROST rounds, fresh anchor, proof, broadcast
+//! Local tools:
 //!   dkg-local   run the 3-party DKG in one process and write each role's share bundle
 //!   show        print the escrow address, UFVK and escrowFvkHash from a share bundle
 //!   inspect     print a PCZT's sighash, pending spends (alpha) and verified payments
@@ -8,9 +15,12 @@
 //!   terms-hash  validate a terms JSON and print its termsHash (as LoanBook stores it)
 //!   demo        offline end-to-end liquidation on a simulated Ironwood chain
 
+mod net;
+
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use alloy_primitives::{Address, B256};
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use lentic_core::math::{Price, liquidation_split};
@@ -34,6 +44,36 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Write a new test Base key (hex) to a file and print its address.
+    BaseKey {
+        #[arg(long)]
+        out: PathBuf,
+    },
+    /// Make a loan's escrow key with the policy signer (create a session, or join one).
+    #[command(subcommand)]
+    Dkg(DkgCommand),
+    /// Approve a loan's terms, or register approved terms with the policy signer.
+    #[command(subcommand)]
+    Terms(TermsCommand),
+    /// Co-sign an escrow spend with the policy signer and broadcast it.
+    Cosign {
+        #[arg(long, env = "LENTIC_POLICY_URL", default_value = "http://127.0.0.1:8787")]
+        policy: String,
+        #[arg(long)]
+        loan_id: B256,
+        #[arg(long, value_enum)]
+        kind: net::Kind,
+        /// This party's share bundle (from `dkg join`).
+        #[arg(long)]
+        share: PathBuf,
+        #[arg(long, default_value = "https://testnet.zec.rocks:443")]
+        server: String,
+        /// Where the PCZTs, the raw transaction and the attestation are written.
+        #[arg(long, default_value = "dev/cosign")]
+        out_dir: PathBuf,
+        #[arg(long)]
+        no_broadcast: bool,
+    },
     /// Run the 3-party DKG locally and write <out>/<role>.share.json for each role.
     DkgLocal {
         #[arg(long, default_value = "loan-shares")]
@@ -67,6 +107,9 @@ enum Command {
         /// 32-byte hex salt shared by the three parties.
         #[arg(long)]
         salt: String,
+        /// Print the loan id instead: keccak256(abi.encode(vault, termsHash)).
+        #[arg(long)]
+        loan_id: bool,
     },
     /// Offline end-to-end liquidation on a simulated Ironwood chain.
     Demo {
@@ -79,15 +122,90 @@ enum Command {
     },
 }
 
+#[derive(Subcommand)]
+enum DkgCommand {
+    /// Open a DKG session on the policy signer for a borrower and a lender.
+    Create {
+        #[arg(long, env = "LENTIC_POLICY_URL", default_value = "http://127.0.0.1:8787")]
+        policy: String,
+        /// The loan-specific Base address that will receive the USDC.
+        #[arg(long)]
+        borrower: Address,
+        /// The lender's vault owner.
+        #[arg(long)]
+        lender: Address,
+    },
+    /// Take part in a session as borrower or lender; writes this party's share bundle.
+    Join {
+        #[arg(long, env = "LENTIC_POLICY_URL", default_value = "http://127.0.0.1:8787")]
+        policy: String,
+        #[arg(long)]
+        session: String,
+        #[arg(long)]
+        role: Role,
+        /// File with this party's Base key (hex).
+        #[arg(long)]
+        base_key: PathBuf,
+        #[arg(long, default_value = "testnet")]
+        network: ZcashNetwork,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long, default_value_t = 600)]
+        timeout_secs: u64,
+    },
+}
+
+#[derive(Subcommand)]
+enum TermsCommand {
+    /// Sign (EIP-191) a loan's terms for the policy signer. The loan id is derived:
+    /// keccak256(abi.encode(vault, termsHash)), as LoanBook computes it.
+    Approve {
+        #[arg(long)]
+        terms: PathBuf,
+        #[arg(long)]
+        salt: B256,
+        #[arg(long)]
+        base_key: PathBuf,
+    },
+    /// Hand terms approved by both parties to the policy signer.
+    Register {
+        #[arg(long, env = "LENTIC_POLICY_URL", default_value = "http://127.0.0.1:8787")]
+        policy: String,
+        #[arg(long)]
+        terms: PathBuf,
+        #[arg(long)]
+        salt: B256,
+        #[arg(long)]
+        session: String,
+        #[arg(long)]
+        borrower_signature: String,
+        #[arg(long)]
+        lender_signature: String,
+    },
+}
+
 /// Everything one role keeps for one loan. The FVK seed is shared by all three roles.
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ShareBundle {
-    role: Role,
-    key_package: KeyPackage,
-    public_key_package: PublicKeyPackage,
+pub(crate) struct ShareBundle {
+    pub role: Role,
+    pub key_package: KeyPackage,
+    pub public_key_package: PublicKeyPackage,
     #[serde(with = "hex::serde")]
-    fvk_seed: [u8; 32],
+    pub fvk_seed: [u8; 32],
+    /// The DKG session on the policy signer (absent for `dkg-local` shares).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session: Option<String>,
+    /// Chain height when the escrow key was made: scanning starts here.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub birthday: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub policy: Option<String>,
+    /// The policy signer's Base address, which must sign its attestations.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub policy_signer: Option<Address>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub network: Option<ZcashNetwork>,
 }
 
 impl ShareBundle {
@@ -101,17 +219,64 @@ impl ShareBundle {
     }
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     match Cli::parse().command {
+        Command::BaseKey { out } => net::new_base_key(&out),
+        Command::Dkg(DkgCommand::Create { policy, borrower, lender }) => {
+            net::dkg_create(&net::Policy::new(&policy), borrower, lender).await
+        }
+        Command::Dkg(DkgCommand::Join { policy, session, role, base_key, network, out, timeout_secs }) => {
+            let key = net::load_base_key(&base_key)?;
+            net::dkg_join(
+                &net::Policy::new(&policy),
+                &session,
+                role,
+                &key,
+                network,
+                &out,
+                std::time::Duration::from_secs(timeout_secs),
+            )
+            .await
+        }
+        Command::Terms(TermsCommand::Approve { terms, salt, base_key }) => {
+            net::terms_approve(&terms, salt, &net::load_base_key(&base_key)?)
+        }
+        Command::Terms(TermsCommand::Register {
+            policy,
+            terms,
+            salt,
+            session,
+            borrower_signature,
+            lender_signature,
+        }) => {
+            net::terms_register(
+                &net::Policy::new(&policy),
+                &terms,
+                salt,
+                &session,
+                &borrower_signature,
+                &lender_signature,
+            )
+            .await
+        }
+        Command::Cosign { policy, loan_id, kind, share, server, out_dir, no_broadcast } => {
+            net::cosign(&net::Policy::new(&policy), loan_id, kind, &share, &server, &out_dir, no_broadcast).await
+        }
         Command::DkgLocal { out } => dkg_local(&out),
         Command::Show { share, network } => show(&ShareBundle::load(&share)?, network),
         Command::Inspect { pczt } => inspect(&pczt),
         Command::SignLocal { pczt, shares, out } => sign_local_cmd(&pczt, &shares, &out),
-        Command::TermsHash { terms, salt } => {
+        Command::TermsHash { terms, salt, loan_id } => {
             let terms: lentic_core::LoanTerms = serde_json::from_str(&std::fs::read_to_string(&terms)?)?;
             terms.validate().map_err(anyhow::Error::msg)?;
             let salt: lentic_core::terms::Salt = salt.parse().context("salt must be 32-byte hex")?;
-            println!("{}", lentic_core::terms_hash(&terms, salt));
+            let hash = lentic_core::terms_hash(&terms, salt);
+            if loan_id {
+                println!("{}", lentic_core::loan_id(terms.lender_vault, hash));
+            } else {
+                println!("{hash}");
+            }
             Ok(())
         }
         Command::Demo { collateral_zec, debt_usdc, price_usd } => demo(collateral_zec, debt_usdc, price_usd),
@@ -123,7 +288,17 @@ fn dkg_local(out: &Path) -> Result<()> {
     let seed = fvk::fvk_seed(&mut OsRng); // sampled by the borrower in the networked flow
     std::fs::create_dir_all(out)?;
     for (role, key) in dkg.keys {
-        let bundle = ShareBundle { role, key_package: key, public_key_package: dkg.public.clone(), fvk_seed: seed };
+        let bundle = ShareBundle {
+            role,
+            key_package: key,
+            public_key_package: dkg.public.clone(),
+            fvk_seed: seed,
+            session: None,
+            birthday: None,
+            policy: None,
+            policy_signer: None,
+            network: None,
+        };
         let path = out.join(format!("{role}.share.json"));
         std::fs::write(&path, serde_json::to_string_pretty(&bundle)?)?;
         println!("wrote {}", path.display());
@@ -131,7 +306,7 @@ fn dkg_local(out: &Path) -> Result<()> {
     Ok(())
 }
 
-fn show(bundle: &ShareBundle, network: ZcashNetwork) -> Result<()> {
+pub(crate) fn show(bundle: &ShareBundle, network: ZcashNetwork) -> Result<()> {
     let params = network.params();
     let fvk = bundle.fvk()?;
     let out = serde_json::json!({
@@ -142,6 +317,9 @@ fn show(bundle: &ShareBundle, network: ZcashNetwork) -> Result<()> {
         "ufvk": keys::encode_ufvk(&params, &fvk)?,
         "escrowFvkHash": escrow_fvk_hash(&fvk.to_bytes()),
         "fingerprint": fvk::fvk_fingerprint(&fvk),
+        "session": bundle.session,
+        "birthday": bundle.birthday,
+        "policySigner": bundle.policy_signer,
     });
     println!("{}", serde_json::to_string_pretty(&out)?);
     Ok(())

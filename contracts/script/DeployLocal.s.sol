@@ -33,15 +33,14 @@ contract DeployLocal is Script {
         MockUSDC usdc = new MockUSDC();
         MockDcapAttestation dcap = new MockDcapAttestation();
         AttestationVerifier verifier = new AttestationVerifier(dcap, DevQuote.measurement(), 30 days);
-        LoanBook book = new LoanBook(verifier);
+        LoanBook book = new LoanBook(verifier, usdc, deployer, 1_000);
         verifier.register(DevQuote.build(policy, DEV_CONFIG_HASH));
         usdc.mint(lender, 1_000_000e6);
         usdc.mint(borrower, 50_000e6);
         vm.stopBroadcast();
 
         vm.startBroadcast(LENDER_KEY);
-        LenderVault vault =
-            new LenderVault(usdc, "Lentic Lender Vault A", "lvUSDC-A", lender, book, deployer, 1_000);
+        LenderVault vault = book.createVault("Lentic Lender Vault A", "lvUSDC-A");
         usdc.approve(address(vault), type(uint256).max);
         vault.deposit(500_000e6, lender);
         vm.stopBroadcast();

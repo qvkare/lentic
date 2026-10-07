@@ -15,8 +15,8 @@ import {MockUSDC} from "../src/mocks/MockUSDC.sol";
 
 contract LenticTest is Test {
     uint256 constant USDC = 1e6;
-    bytes32 constant LOAN = keccak256("loan-1");
     bytes32 constant TERMS = keccak256("terms-1");
+    bytes32 LOAN; // keccak256(abi.encode(vault, TERMS))
     bytes32 constant CONFIG = keccak256("policy-config-v1");
 
     MockUSDC usdc;
@@ -36,8 +36,10 @@ contract LenticTest is Test {
         usdc = new MockUSDC();
         dcap = new MockDcapAttestation();
         verifier = new AttestationVerifier(dcap, DevQuote.measurement(), 7 days);
-        book = new LoanBook(verifier);
-        vault = new LenderVault(usdc, "Lender A Lentic Vault", "lvUSDC-A", lender, book, lentic, 1_000);
+        book = new LoanBook(verifier, usdc, lentic, 1_000);
+        vm.prank(lender);
+        vault = book.createVault("Lender A Lentic Vault", "lvUSDC-A");
+        LOAN = book.loanIdOf(address(vault), TERMS);
 
         usdc.mint(lender, 100_000 * USDC);
         usdc.mint(lp, 50_000 * USDC);
@@ -215,8 +217,63 @@ contract LenticTest is Test {
     function test_open_rejectsDuplicates() public {
         vm.prank(lender);
         vault.fund(LOAN, TERMS, borrower, uint128(1 * USDC));
+        vm.prank(lender);
         vm.expectRevert(abi.encodeWithSelector(LoanBook.LoanExists.selector, LOAN));
+        vault.fund(LOAN, TERMS, borrower, uint128(1 * USDC));
+    }
+
+    // ------------------------------------------------------------ vaults and loan ids
+
+    function test_createVault_ownedByTheLenderWithTheBooksFee() public view {
+        assertTrue(book.isVault(address(vault)));
+        assertEq(vault.owner(), lender);
+        assertEq(vault.feeBps(), 1_000);
+        assertEq(vault.feeRecipient(), lentic);
+        assertEq(address(vault.loanBook()), address(book));
+        assertEq(vault.asset(), address(usdc));
+    }
+
+    function test_open_onlyByVaultsCreatedHere() public {
+        // Anyone calling the book directly.
+        vm.expectRevert(abi.encodeWithSelector(LoanBook.NotVault.selector, address(this)));
         book.open(LOAN, TERMS);
+
+        // A look-alike vault deployed outside the book cannot open loans either.
+        LenderVault outside = new LenderVault(usdc, "Outside", "OUT", stranger, book, lentic, 1_000);
+        usdc.mint(address(outside), 1 * USDC);
+        bytes32 id = book.loanIdOf(address(outside), TERMS);
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSelector(LoanBook.NotVault.selector, address(outside)));
+        outside.fund(id, TERMS, borrower, uint128(1 * USDC));
+        assertEq(book.loanCount(), 0);
+    }
+
+    function test_open_loanIdIsBoundToVaultAndTerms() public {
+        vm.prank(lender);
+        vm.expectRevert(abi.encodeWithSelector(LoanBook.BadLoanId.selector, LOAN));
+        vault.fund(keccak256("chosen by the caller"), TERMS, borrower, uint128(1 * USDC));
+    }
+
+    function test_noVaultCanTakeAnotherVaultsLoanId() public {
+        // A stranger opens its own vault and tries to fund the victim's loan id first.
+        vm.prank(stranger);
+        LenderVault theirs = book.createVault("Theirs", "THR");
+        usdc.mint(address(theirs), 1 * USDC);
+        bytes32 theirId = book.loanIdOf(address(theirs), TERMS);
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSelector(LoanBook.BadLoanId.selector, theirId));
+        theirs.fund(LOAN, TERMS, borrower, uint128(1 * USDC));
+
+        // The real vault still opens it.
+        vm.prank(lender);
+        vault.fund(LOAN, TERMS, borrower, uint128(1 * USDC));
+        (, address loanVault,,,,,) = book.loans(LOAN);
+        assertEq(loanVault, address(vault));
+    }
+
+    function test_constructor_capsTheFee() public {
+        vm.expectRevert(LoanBook.FeeTooHigh.selector);
+        new LoanBook(verifier, usdc, lentic, 2_001);
     }
 
     function test_cooperativeClose_onlyByLoanVault() public {
@@ -238,11 +295,12 @@ contract LenticTest is Test {
         t.borrower = borrower;
         bytes32 salt = keccak256("salt");
         bytes32 h = LoanTermsLib.hash(t, salt);
+        bytes32 id = book.loanIdOf(address(vault), h);
         vm.prank(lender);
-        vault.fund(LOAN, h, borrower, uint128(10_000 * USDC));
+        vault.fund(id, h, borrower, uint128(10_000 * USDC));
 
-        assertTrue(book.verifyTerms(LOAN, t, salt));
+        assertTrue(book.verifyTerms(id, t, salt));
         t.principal += 1;
-        assertFalse(book.verifyTerms(LOAN, t, salt));
+        assertFalse(book.verifyTerms(id, t, salt));
     }
 }

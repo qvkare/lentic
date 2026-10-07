@@ -323,6 +323,10 @@ async fn register(State(s): State<Shared>, Json(req): Json<Register>) -> ApiResu
         return Err(bad_request(format!("the terms pay {}, the DKG session's borrower is {borrower}", terms.borrower)));
     }
     let hash = terms_hash(terms, req.salt);
+    let expected_id = lentic_core::loan_id(terms.lender_vault, hash);
+    if req.loan_id != expected_id {
+        return Err(bad_request(format!("the loan id is keccak256(abi.encode(vault, termsHash)) = {expected_id}")));
+    }
     let message = approval_message(req.loan_id, hash);
     let recover =
         |sig: &[u8]| lentic_frost::relay::recover_signer(&message, sig).map_err(|e| bad_request(e.to_string()));

@@ -57,7 +57,8 @@ open_loan() {
 TERMS
   local terms_hash loan_id
   terms_hash=$("$SIGNER" terms-hash --terms "$terms_file" --salt "$SALT")
-  loan_id=$(cast keccak "lentic-$tag-loan-$NOW")
+  # LoanBook binds the id to the vault: keccak256(abi.encode(vault, termsHash)).
+  loan_id=$("$SIGNER" terms-hash --terms "$terms_file" --salt "$SALT" --loan-id)
   cast send --rpc-url "$RPC" --private-key "$LENDER_KEY" "$VAULT" \
     "fund(bytes32,bytes32,address,uint128)" "$loan_id" "$terms_hash" "$BORROWER" "$principal" >/dev/null
   printf '{ "loanId": "%s", "salt": "%s", "terms": %s }\n' "$loan_id" "$SALT" "$(cat "$terms_file")" \

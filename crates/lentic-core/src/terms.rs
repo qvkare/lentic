@@ -127,6 +127,12 @@ pub fn escrow_fvk_hash(fvk_bytes: &[u8; 96]) -> B256 {
     keccak256(fvk_bytes)
 }
 
+/// A loan's id: `keccak256(abi.encode(vault, termsHash))`, as `LoanBook.loanIdOf` computes it.
+/// Binding the id to the vault means no other vault can open a loan under it first.
+pub fn loan_id(vault: Address, terms_hash: B256) -> B256 {
+    keccak256((vault, terms_hash).abi_encode_params())
+}
+
 /// What the borrower and the lender each sign (EIP-191) to hand a loan's terms to the
 /// policy signer.
 pub fn approval_message(loan_id: B256, terms_hash: B256) -> String {
@@ -189,6 +195,16 @@ pub(crate) mod tests {
         // Produced by `forge test --match-test test_fixtureHash -vv` (LoanTermsLib.t.sol).
         let expected = include_str!("../../../contracts/test/vectors/terms_hash.txt").trim();
         assert_eq!(terms_hash(&terms, salt).to_string(), expected);
+    }
+
+    #[test]
+    fn loan_id_is_abi_encoded_vault_and_terms_hash() {
+        let (terms, salt) = fixture();
+        let hash = terms_hash(&terms, salt);
+        let mut preimage = [0u8; 64];
+        preimage[12..32].copy_from_slice(terms.lender_vault.as_slice());
+        preimage[32..].copy_from_slice(hash.as_slice());
+        assert_eq!(loan_id(terms.lender_vault, hash), keccak256(preimage));
     }
 
     #[test]

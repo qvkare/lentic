@@ -13,4 +13,4 @@ pub mod terms;
 pub use health::Health;
 pub use math::{LiquidationSplit, Owed, Price, Repayment, SplitError};
 pub use roles::Role;
-pub use terms::{LoanTerms, escrow_fvk_hash, terms_hash};
+pub use terms::{LoanTerms, escrow_fvk_hash, loan_id, terms_hash};

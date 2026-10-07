@@ -6,7 +6,7 @@
   "devConfigHash": "0x344e26ccbb5bbfce4dac72f09c20afb110a1ac3e966e2218c86a78b9f41c1d56",
   "feeRecipient": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
   "lender": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-  "lenderVault": "0x8464135c8F25Da09e49BC8782676a84730C318bC",
+  "lenderVault": "0xd8058efe0198ae9dD7D563e1b4938Dcbc86A1F81",
   "loanBook": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
   "policySigner": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
   "startBlock": 0,

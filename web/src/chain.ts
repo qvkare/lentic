@@ -73,11 +73,13 @@ export async function readLoan(loanBook: Address, loanId: Hex): Promise<Loan | n
   };
 }
 
+/** Loans opened by the configured lender's vault (every loan, when no vault is configured). */
 export async function listLoans(d: Deployment): Promise<Loan[]> {
   const opened = await client.getContractEvents({
     address: d.loanBook,
     abi: loanBookAbi,
     eventName: "LoanOpened",
+    args: d.lenderVault ? { vault: d.lenderVault } : undefined,
     fromBlock: d.startBlock,
   });
   const loans = await Promise.all(opened.map((e) => readLoan(d.loanBook, e.args.loanId as Hex)));

@@ -1,6 +1,6 @@
 [package]
 name = "lentic-signer"
-description = "Lentic borrower/lender signer: DKG, escrow keys, PCZT inspection and FROST signing"
+description = "Lentic borrower/lender signer: DKG through the policy signer, terms approval, co-signed escrow spends"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -18,3 +18,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }
 hex = { workspace = true }
+tokio = { workspace = true }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
+alloy-primitives = { workspace = true, features = ["serde"] }
+k256 = { workspace = true }
