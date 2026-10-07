@@ -10,7 +10,7 @@
     "build:contracts": "cd contracts && forge build",
     "abis": "node scripts/export-abis.mjs",
     "test": "cargo test --workspace --all-features && cd contracts && forge test",
-    "local:chain": "anvil --port 8546 --chain-id 31337 --block-time 1",
+    "local:chain": "anvil --port 8546 --chain-id 31337 --block-time 1 --prune-history",
     "local:deploy": "bash scripts/dev-deploy.sh",
     "policy": "cargo run -p lentic-policy -- serve --dev-routes --report-health",
     "web": "pnpm --filter @lentic/web dev",
