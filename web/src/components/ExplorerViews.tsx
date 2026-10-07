@@ -38,9 +38,9 @@ export function ExplorerViews({ loan }: { loan: ExplorerLoan }) {
               Transaction{" "}
               <a
                 className="mono"
-                href="https://testnet.zecblock.com/tx/608ffb1728e9583a788313a515e9750a029701ccadc8cb664cce3b518633cc9d"
+                href="https://testnet.zecblock.com/tx/8f77eee426e01da6b2187c3d5a12c0da9a5d3a2dc03b082f11e6178474b20ab5"
               >
-                608ffb17…8633cc9d
+                8f77eee4…74b20ab5
               </a>{" "}
               <span className="state-tag live">Testnet</span>
             </p>
@@ -82,21 +82,21 @@ export function ExplorerViews({ loan }: { loan: ExplorerLoan }) {
         {view === "base" && (
           <>
             <p className="record-head">
-              LoanBook and USDC <span className={loan ? "state-tag live" : "state-tag"}>{loan ? "Live" : "Example"}</span>
+              LoanBook and USDC <span className="state-tag live">{loan ? "Live" : "Base Sepolia"}</span>
             </p>
             <dl className="readings-list">
               <dt>Loan</dt>
-              <dd className="mono">{loan ? short(loan.loanId, 6) : "0x6753a7…008dde"}</dd>
+              <dd className="mono">{loan ? short(loan.loanId, 6) : "0xa3c82d…3e02cc"}</dd>
               <dt>Terms</dt>
               <dd>
-                A hash only: <span className="mono">{loan ? short(loan.termsHash, 6) : "0xf168cf…ced2a9"}</span>
+                A hash only: <span className="mono">{loan ? short(loan.termsHash, 6) : "0xffd17b…fb5408"}</span>
               </dd>
               <dt>USDC payout</dt>
               <dd>
                 {loan
                   ? `${(loan.debt / 1e6).toLocaleString("en-US", { maximumFractionDigits: 0 })} USDC`
-                  : "10,000 USDC"}{" "}
-                from the vault <span className="mono">{loan ? short(loan.vault) : "0x8464…18bC"}</span>
+                  : "6 USDC"}{" "}
+                from the vault <span className="mono">{loan ? short(loan.vault) : "0xfE5c…29f0"}</span>
               </dd>
               <dt>Health</dt>
               <dd>Reported by the attested policy signer</dd>

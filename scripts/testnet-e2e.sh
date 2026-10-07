@@ -161,9 +161,20 @@ TERMS
 
   say "loan $tag: the lender's vault funds it on Base"
   local fund
-  fund=$(cast send --json --rpc-url "$RPC" --private-key "$LENDER_KEY" "$VAULT" \
-    "fund(bytes32,bytes32,address,uint128)" "$LOAN_ID" "$hash" "$BORROWER_ADDR" "$PRINCIPAL" | field "d['transactionHash']")
+  fund=$(bsend "$LENDER_KEY" "$VAULT" "fund(bytes32,bytes32,address,uint128)" "$LOAN_ID" "$hash" "$BORROWER_ADDR" \
+    "$PRINCIPAL" | field "d['transactionHash']")
   record "{\"loan\":\"$tag\",\"step\":\"fund\",\"chain\":\"base-$BASE\",\"tx\":\"$fund\",\"loanId\":\"$LOAN_ID\",\"termsHash\":\"$hash\"$(base_tx "$fund")}"
+}
+
+# cast send with retries: a load-balanced public RPC can hand out a stale nonce.
+bsend() { # bsend <private key> <cast send args...>; prints the receipt JSON
+  local key=$1 out attempt
+  shift
+  for attempt in 1 2 3 4; do
+    out=$(cast send --json --rpc-url "$RPC" --private-key "$key" "$@" 2>/dev/null) && { echo "$out"; return 0; }
+    sleep $((attempt * 3))
+  done
+  cast send --json --rpc-url "$RPC" --private-key "$key" "$@"
 }
 
 health() { curl -sf "$API/v1/loans/$1" | field "d['health']"; }
@@ -187,6 +198,9 @@ curl -sf -X POST "$API/v1/dev/price" -H 'content-type: application/json' -d '{"u
 wait_health "$LOAN_A" liquidated
 BOOK_A=$(curl -sf "$API/v1/loans/$LOAN_A/escrow" | field "d['intent']['reported']")
 record "{\"loan\":\"A\",\"step\":\"loanbook\",\"chain\":\"base-$BASE\",\"health\":\"liquidated\",\"tx\":\"$BOOK_A\"$(base_tx "$BOOK_A")}"
+say "loan A: the lender holds the ZEC now; the unrepaid principal leaves the vault's books"
+WRITE_OFF=$(bsend "$LENDER_KEY" "$VAULT" "writeOff(bytes32)" "$LOAN_A" | field "d['transactionHash']")
+record "{\"loan\":\"A\",\"step\":\"write-off\",\"chain\":\"base-$BASE\",\"tx\":\"$WRITE_OFF\"$(base_tx "$WRITE_OFF")}"
 
 # ---------------------------------------------------------------- loan B: repaid and closed
 open_loan B
@@ -198,8 +212,8 @@ for _ in $(seq 1 30); do
   sleep 2
 done
 PAY=$((OWED + 10000)) # interest keeps accruing by the second; a cent on top covers it
-cast send --rpc-url "$RPC" --private-key "$BORROWER_KEY" "$USDC" "approve(address,uint256)" "$VAULT" "$PAY" >/dev/null
-REPAY=$(cast send --json --rpc-url "$RPC" --private-key "$BORROWER_KEY" "$VAULT" "repay(bytes32,uint256)" "$LOAN_B" "$PAY" | field "d['transactionHash']")
+bsend "$BORROWER_KEY" "$USDC" "approve(address,uint256)" "$VAULT" "$PAY" >/dev/null
+REPAY=$(bsend "$BORROWER_KEY" "$VAULT" "repay(bytes32,uint256)" "$LOAN_B" "$PAY" | field "d['transactionHash']")
 record "{\"loan\":\"B\",\"step\":\"repay\",\"chain\":\"base-$BASE\",\"tx\":\"$REPAY\",\"micro_usdc\":$PAY$(base_tx "$REPAY")}"
 say "loan B: borrower + policy signer co-sign the close"
 for _ in $(seq 1 30); do

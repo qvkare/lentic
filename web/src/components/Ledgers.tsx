@@ -1,4 +1,4 @@
-import type { KeyTurn, Party } from "../chain";
+import { EXPLORER_TX, type KeyTurn, type Party } from "../chain";
 import { isFlood, when } from "../format";
 
 const PARTIES: { id: Party; label: string }[] = [
@@ -47,7 +47,7 @@ export function KeyTurnLedger({ turns }: { turns: KeyTurn[] }) {
             ))}
             <td data-label="Detail">{t.detail}</td>
             <td className="num" data-label="Time">
-              {when(t.time)}
+              {EXPLORER_TX ? <a href={`${EXPLORER_TX}${t.tx}`}>{when(t.time)}</a> : when(t.time)}
             </td>
           </tr>
         ))}

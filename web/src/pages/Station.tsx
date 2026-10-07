@@ -89,6 +89,11 @@ export function Station({ loanId }: { loanId: Hex }) {
           )}
           {closed ? (
             <p className="reading-stage">Closed. The collateral went back to the borrower's shielded address.</p>
+          ) : loan.data?.health === "liquidated" && !(latest && g) ? (
+            <p className="reading-stage flood-text">
+              Liquidated. The lender and the policy signer co-signed the split the signer computed; the outcome and the
+              hash of its attestation are on Base.
+            </p>
           ) : latest && g ? (
             <>
               <p className="ltv-label">Loan-to-value</p>

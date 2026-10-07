@@ -130,33 +130,75 @@ const AUDIENCE: { who: string; does: string; policy: string }[] = [
   },
 ];
 
-/** The first loans on Zcash testnet (docs/testnet.md): real transactions, shown by any explorer. */
-const TESTNET: { loan: string; step: string; txid: string; what: string }[] = [
+/** Two loans on Zcash testnet and Base Sepolia (docs/testnet.md, run 2): real transactions. */
+const TESTNET: { loan: string; step: string; chain: "Zcash" | "Base"; tx: string; what: string }[] = [
   {
     loan: "A",
     step: "Deposit",
-    txid: "18df5f277fcbd5a2ed26f34400690215814e1a0179ff299905be377e91b0b18c",
+    chain: "Zcash",
+    tx: "f0c1e5d6e70a3286777774817cab936f2cf7f8bb01dc79074636cdb8d34f93f0",
     what: "0.01 TAZ into a 2-of-3 escrow whose key was made through the policy signer's relay.",
   },
   {
     loan: "A",
+    step: "Fund",
+    chain: "Base",
+    tx: "0x066eb300d0a74b0b32ff30b625fc38ec5a40da2a6fd1de8effe3bca56af1b01b",
+    what: "6 USDC from the lender's vault. LoanBook records only a hash of the terms.",
+  },
+  {
+    loan: "A",
+    step: "Flood stage",
+    chain: "Base",
+    tx: "0xc3608142618feb16dc0b46cfa8168a29d4785210d59c0b2a049b265bd3ef89e7",
+    what: "ZEC/USD set to 750 as a test price: the policy signer reports the loan liquidatable.",
+  },
+  {
+    loan: "A",
     step: "Liquidation",
-    txid: "608ffb1728e9583a788313a515e9750a029701ccadc8cb664cce3b518633cc9d",
-    what: "At flood stage the lender and the policy signer co-signed the split the signer computed: 0.00867 TAZ to the lender, 0.00123 TAZ back to the borrower.",
+    chain: "Zcash",
+    tx: "8f77eee426e01da6b2187c3d5a12c0da9a5d3a2dc03b082f11e6178474b20ab5",
+    what: "The lender and the policy signer co-sign the split the signer computed: 0.00867 TAZ to the lender, 0.00123 TAZ back to the borrower.",
+  },
+  {
+    loan: "A",
+    step: "Outcome",
+    chain: "Base",
+    tx: "0x90665d8fa787e3d87519eb21955a1acf3f27151d27281a04a6ef32d6252480e4",
+    what: "Liquidated, with the hash of the signer's attestation.",
   },
   {
     loan: "B",
     step: "Deposit",
-    txid: "13b0f0ccbaba518e1f5c4adce862ffdb1dcf89233d7c3181ed519a5c66be02e8",
+    chain: "Zcash",
+    tx: "334c6b254a9790e1aa0c2ff826fbe773a06ea91c1d48d0a39d8178d4526e6354",
     what: "0.01 TAZ into a second escrow.",
   },
   {
     loan: "B",
+    step: "Repay",
+    chain: "Base",
+    tx: "0xb6b135322c6a59e0475ee59aad95810b52861e8e2cefcca064522598120b5503",
+    what: "6.01 USDC back into the vault: principal and interest.",
+  },
+  {
+    loan: "B",
     step: "Close",
-    txid: "7faf0a83178dcbcce9df8c6a3290e1073d90cc830c09f0843e8498d2a6c593df",
-    what: "Once the USDC was repaid on Base, the borrower and the policy signer returned the ZEC to the borrower.",
+    chain: "Zcash",
+    tx: "29c9d0cfc44e81c7c60a0d679d12a3dc76f3c82d72aa1c96a0352be4e7539266",
+    what: "The borrower and the policy signer return the ZEC to the borrower.",
+  },
+  {
+    loan: "B",
+    step: "Outcome",
+    chain: "Base",
+    tx: "0xf8f02b149aef7de1b46b7b283020535b608e0275758ba3e84a1cc72c70b4add9",
+    what: "Closed, with the hash of the signer's attestation.",
   },
 ];
+
+const txUrl = (chain: "Zcash" | "Base", tx: string) =>
+  chain === "Zcash" ? `https://testnet.zecblock.com/tx/${tx}` : `https://sepolia.basescan.org/tx/${tx}`;
 
 const PROOFS: { claim: string; evidence: string }[] = [
   {
@@ -248,7 +290,7 @@ export function Home() {
           <h2 id="policies-title">One escrow, four policies</h2>
           <p className="lede small">
             The keys and the policy signer stay the same; the policy decides what the escrow is for. Loans run on Zcash
-            testnet today.
+            testnet and Base Sepolia today.
             Credit lines, OTC settlement and recovery are simulated here with the same keys.
           </p>
         </div>
@@ -372,9 +414,10 @@ export function Home() {
 
       <section id="testnet" aria-labelledby="testnet-title">
         <div className="section-head">
-          <h2 id="testnet-title">On Zcash testnet</h2>
+          <h2 id="testnet-title">On testnet</h2>
           <p className="lede small">
-            Real transactions from the first two loans. An explorer shows only that shielded transactions happened.
+            Two loans on Zcash testnet and Base Sepolia. A Zcash explorer shows only that shielded transactions
+            happened; Base shows the terms hash, the stage and the USDC.
           </p>
         </div>
         <table className="ledger proofs testnet">
@@ -382,20 +425,22 @@ export function Home() {
             <tr>
               <th scope="col">Loan</th>
               <th scope="col">Step</th>
+              <th scope="col">Chain</th>
               <th scope="col">Transaction</th>
               <th scope="col">What happened</th>
             </tr>
           </thead>
           <tbody>
             {TESTNET.map((t) => (
-              <tr key={t.txid}>
+              <tr key={t.tx}>
                 <td data-label="Loan">{t.loan}</td>
                 <th scope="row" data-label="Step">
                   {t.step}
                 </th>
+                <td data-label="Chain">{t.chain}</td>
                 <td data-label="Transaction">
-                  <a className="mono" href={`https://testnet.zecblock.com/tx/${t.txid}`}>
-                    {short(t.txid, 6)}
+                  <a className="mono" href={txUrl(t.chain, t.tx)}>
+                    {short(t.tx, 6)}
                   </a>
                 </td>
                 <td data-label="What happened">{t.what}</td>

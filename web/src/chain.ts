@@ -18,6 +18,10 @@ const local = defineChain({
 });
 
 const chain = CHAIN_ID === 8453 ? base : CHAIN_ID === 84532 ? baseSepolia : local;
+
+/** Where a Base transaction can be looked up, when the chain has a public explorer. */
+export const EXPLORER_TX: string | null =
+  CHAIN_ID === 8453 ? "https://basescan.org/tx/" : CHAIN_ID === 84532 ? "https://sepolia.basescan.org/tx/" : null;
 export const client = createPublicClient({ chain, transport: http(RPC_URL ?? undefined) });
 
 export type Deployment = {
@@ -120,6 +124,7 @@ export type Party = "borrower" | "lender" | "policy";
 /** One row of the key-turn ledger: what happened and which keys acted. */
 export type KeyTurn = {
   key: string;
+  tx: Hex;
   event: string;
   detail: string;
   acted: Party[];
@@ -162,6 +167,7 @@ export async function keyTurns(d: Deployment, loan: Loan): Promise<KeyTurn[]> {
   for (const e of opened) {
     rows.push({
       key: `${e.transactionHash}-${e.logIndex}`,
+      tx: e.transactionHash,
       event: "Opened and paid out",
       detail: principal ? `${formatUsdc(principal)} from the lender's vault` : "Lender's vault",
       acted: ["lender"],
@@ -173,6 +179,7 @@ export async function keyTurns(d: Deployment, loan: Loan): Promise<KeyTurn[]> {
     const byVault = (e.args.signer as string).toLowerCase() === loan.vault.toLowerCase();
     rows.push({
       key: `${e.transactionHash}-${e.logIndex}`,
+      tx: e.transactionHash,
       event: byVault ? "Closed by borrower and lender" : STAGE_REPORT[health],
       detail: byVault ? "Recorded by the lender's vault" : `Price reading of ${readingTime(e.args.oracleRound)}`,
       acted: byVault ? ["borrower", "lender"] : health === "liquidated" ? ["lender", "policy"] : ["policy"],
@@ -184,6 +191,7 @@ export async function keyTurns(d: Deployment, loan: Loan): Promise<KeyTurn[]> {
     const amount = (e.args.principalPart ?? 0n) + (e.args.interestPart ?? 0n);
     rows.push({
       key: `${e.transactionHash}-${e.logIndex}`,
+      tx: e.transactionHash,
       event: "Repayment",
       detail: `${formatUsdc(amount)} into the vault`,
       acted: ["borrower"],
@@ -193,6 +201,7 @@ export async function keyTurns(d: Deployment, loan: Loan): Promise<KeyTurn[]> {
   for (const e of writtenOff) {
     rows.push({
       key: `${e.transactionHash}-${e.logIndex}`,
+      tx: e.transactionHash,
       event: "Written off",
       detail: `${formatUsdc(e.args.principalLost ?? 0n)} left the vault's books`,
       acted: ["lender"],

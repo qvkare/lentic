@@ -1,0 +1,16 @@
+{
+  "attestationVerifier": "0x0A80B04B30b9ca3F17470806D5FaB939766dbB9b",
+  "attestor": "dev",
+  "borrower": "0x09733CD8645efAE2F91ADCB6fEaf622C0B580385",
+  "chainId": 84532,
+  "dcap": "0x5AAbdF2A2a4fE0c91EBc0E99329a4FD8Bc33E183",
+  "devConfigHash": "0x344e26ccbb5bbfce4dac72f09c20afb110a1ac3e966e2218c86a78b9f41c1d56",
+  "feeRecipient": "0x9354aa055501Ac2E1064dEc07ee2d48daDf2257f",
+  "lender": "0xAC75893B24A9ced48BA27063760c830d106E4EbE",
+  "lenderVault": "0xfE5cb917a79b06010f18Be6219ca829358eB29f0",
+  "loanBook": "0xc0945436c9d0F0d247a5d35AA9F8EB0AE2302284",
+  "policySigner": "0x021662E126617c4EA8508E233e04034cab41Aa02",
+  "startBlock": 47817401,
+  "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+  "usdcIsMock": false
+}
