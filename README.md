@@ -106,6 +106,16 @@ Tests: `pnpm test` (Rust workspace incl. the Ironwood end-to-end flows, then Fou
 (the banned-pattern check from web/DESIGN.md) and `pnpm screens` (375, 820 and 1280 px screenshots of the lender book
 and a station, with the live price and with a test price over flood stage, into `web/screens/`).
 
+## Public site
+
+`https://lentic.qvkare.com` serves the web app as static assets on Cloudflare (`web/wrangler.jsonc`). Publish with
+`pnpm deploy:web` after `wrangler login`; the custom domain and its DNS record come from the config.
+
+A production build reads only what its env names (see `web/.env.example`). With no `VITE_BASE_RPC_URL` and
+`VITE_POLICY_URL` it never calls localhost: the home page runs its simulations and the example flood drill, and the
+lender book and station pages say no live deployment is connected. Set `VITE_CHAIN_ID=84532`, a Base Sepolia RPC and a
+public policy signer URL once those exist, then publish again.
+
 ## Policy signer API
 
 | Route | |

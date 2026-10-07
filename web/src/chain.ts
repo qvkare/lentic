@@ -3,19 +3,22 @@ import { base, baseSepolia } from "viem/chains";
 
 import { deployments, lenderVaultAbi, loanBookAbi } from "./generated/contracts";
 
-export const CHAIN_ID = Number(import.meta.env.VITE_CHAIN_ID ?? 31337);
-export const RPC_URL = import.meta.env.VITE_BASE_RPC_URL ?? "http://127.0.0.1:8546";
-export const POLICY_URL = import.meta.env.VITE_POLICY_URL ?? "http://127.0.0.1:8787";
+// `pnpm web` reads the local stack by default. A production build reads only what its env names, so a site
+// published without a deployment never calls a visitor's localhost: it shows the simulations alone.
+const env = import.meta.env;
+export const CHAIN_ID = Number(env.VITE_CHAIN_ID || (env.DEV ? 31337 : 84532));
+export const RPC_URL: string | null = env.VITE_BASE_RPC_URL || (env.DEV ? "http://127.0.0.1:8546" : null);
+export const POLICY_URL: string | null = env.VITE_POLICY_URL || (env.DEV ? "http://127.0.0.1:8787" : null);
 
 const local = defineChain({
   id: 31337,
   name: "Local (anvil)",
   nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-  rpcUrls: { default: { http: [RPC_URL] } },
+  rpcUrls: { default: { http: [RPC_URL ?? "http://127.0.0.1:8546"] } },
 });
 
 const chain = CHAIN_ID === 8453 ? base : CHAIN_ID === 84532 ? baseSepolia : local;
-export const client = createPublicClient({ chain, transport: http(RPC_URL) });
+export const client = createPublicClient({ chain, transport: http(RPC_URL ?? undefined) });
 
 export type Deployment = {
   loanBook: Address;
@@ -26,7 +29,7 @@ export type Deployment = {
 
 export function deployment(): Deployment | null {
   const d = deployments[String(CHAIN_ID)];
-  if (!d) return null;
+  if (!d || !RPC_URL) return null;
   return {
     loanBook: d.loanBook as Address,
     attestationVerifier: d.attestationVerifier as Address,

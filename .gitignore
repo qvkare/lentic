@@ -1,6 +1,7 @@
 target/
 node_modules/
 web/dist/
+web/.wrangler/
 contracts/out/
 contracts/cache/
 contracts/broadcast/*/31337/

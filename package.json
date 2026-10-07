@@ -14,6 +14,7 @@
     "local:deploy": "bash scripts/dev-deploy.sh",
     "policy": "cargo run -p lentic-policy -- serve --dev-routes --report-health",
     "web": "pnpm --filter @lentic/web dev",
+    "deploy:web": "pnpm --filter @lentic/web run deploy",
     "demo": "cargo run -p lentic-signer -- demo",
     "smoke": "bash scripts/smoke.sh",
     "design:check": "node scripts/design-check.mjs web README.md",

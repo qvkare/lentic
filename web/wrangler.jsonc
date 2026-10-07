@@ -1,0 +1,13 @@
+// The public showcase at lentic.qvkare.com: the built web app as static assets on Cloudflare.
+// Deploy with `pnpm deploy:web` from the repo root (needs `wrangler login`).
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lentic",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "404-page"
+  },
+  "workers_dev": false,
+  "routes": [{ "pattern": "lentic.qvkare.com", "custom_domain": true }]
+}

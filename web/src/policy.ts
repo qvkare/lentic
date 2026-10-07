@@ -47,6 +47,7 @@ export type Gauge = {
 export class PolicyError extends Error {}
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
+  if (!POLICY_URL) throw new PolicyError("No policy signer is connected to this site.");
   let res: Response;
   try {
     res = await fetch(`${POLICY_URL}${path}`, init);
