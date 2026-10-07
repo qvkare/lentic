@@ -161,6 +161,39 @@ pub struct VaultPosition {
     pub written_off: bool,
 }
 
+/// A loan's repayments into its vault (`LoanRepaid` events), with their block times.
+pub async fn repayments<P: Provider>(
+    provider: &P,
+    vault: Address,
+    loan_id: B256,
+    from_block: u64,
+) -> Result<Vec<lentic_core::Repayment>> {
+    let filter = Filter::new()
+        .address(vault)
+        .event_signature(LenderVault::LoanRepaid::SIGNATURE_HASH)
+        .topic1(loan_id)
+        .from_block(from_block);
+    let mut out = Vec::new();
+    for log in provider.get_logs(&filter).await? {
+        let event = log.log_decode::<LenderVault::LoanRepaid>()?.inner.data;
+        let at = match log.block_timestamp {
+            Some(t) => t,
+            None => {
+                let number = log.block_number.context("log without a block number")?;
+                provider
+                    .get_block_by_number(number.into())
+                    .await?
+                    .context("block of a repayment not found")?
+                    .header
+                    .timestamp
+            }
+        };
+        let amount = event.principalPart + event.interestPart;
+        out.push(lentic_core::Repayment { at, amount: amount.try_into().context("repayment exceeds u128")? });
+    }
+    Ok(out)
+}
+
 pub async fn vault_position<P: Provider>(provider: &P, vault: Address, loan_id: B256) -> Result<VaultPosition> {
     let p = LenderVault::new(vault, provider).positions(loan_id).call().await?;
     Ok(VaultPosition {

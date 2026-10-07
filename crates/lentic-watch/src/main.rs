@@ -217,7 +217,7 @@ impl WalletFile {
 }
 
 fn explorer(network: ZcashNetwork, txid: &str) -> Option<String> {
-    (network == ZcashNetwork::Testnet).then(|| format!("https://testnet.zcashexplorer.app/transactions/{txid}"))
+    (network == ZcashNetwork::Testnet).then(|| format!("https://testnet.zecblock.com/tx/{txid}"))
 }
 
 fn print(v: &serde_json::Value) -> Result<()> {

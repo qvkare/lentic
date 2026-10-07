@@ -127,6 +127,12 @@ pub fn escrow_fvk_hash(fvk_bytes: &[u8; 96]) -> B256 {
     keccak256(fvk_bytes)
 }
 
+/// What the borrower and the lender each sign (EIP-191) to hand a loan's terms to the
+/// policy signer.
+pub fn approval_message(loan_id: B256, terms_hash: B256) -> String {
+    format!("lentic-terms-v1|{loan_id}|{terms_hash}")
+}
+
 /// `keccak256(abi.encode(terms, salt))`, identical to `LoanTermsLib.hash` in Solidity.
 pub fn terms_hash(terms: &LoanTerms, salt: B256) -> B256 {
     keccak256((terms.to_abi(), salt).abi_encode_params())

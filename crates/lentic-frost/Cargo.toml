@@ -19,3 +19,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 hex = { workspace = true }
 thiserror = { workspace = true }
+k256 = { workspace = true }
+chacha20poly1305 = { workspace = true }
+alloy-primitives = { workspace = true, features = ["k256", "serde"] }

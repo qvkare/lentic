@@ -55,7 +55,61 @@ pub fn accrued_debt(principal: u128, apr_bps: u32, elapsed_secs: u64) -> u128 {
     principal + num.div_ceil(den)
 }
 
-/// Health the policy signer reports for a live loan.
+/// A repayment into the lender's vault: when, and how much (micro-USDC).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Repayment {
+    pub at: u64,
+    pub amount: u128,
+}
+
+/// What a borrower owes at a moment.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Owed {
+    pub principal: u128,
+    /// Interest accrued and not yet paid (rounded up).
+    pub interest: u128,
+}
+
+impl Owed {
+    pub fn total(&self) -> u128 {
+        self.principal + self.interest
+    }
+}
+
+/// Debt under simple interest on the principal still outstanding. Each repayment is booked
+/// the way `LenderVault.repay` books it: principal first, the rest pays interest. Interest
+/// stops accruing once the principal is repaid.
+pub fn owed_at(principal: u128, apr_bps: u32, opened_at: u64, repayments: &[Repayment], now: u64) -> Owed {
+    let mut outstanding = principal;
+    let mut interest_num = 0u128; // in micro-USDC × BPS × seconds-per-year
+    let mut interest_paid = 0u128;
+    let mut t = opened_at;
+    let mut sorted = repayments.to_vec();
+    sorted.sort_by_key(|r| r.at);
+    for r in sorted.iter().filter(|r| r.at <= now) {
+        let at = r.at.max(t);
+        interest_num += outstanding * apr_bps as u128 * (at - t) as u128;
+        let to_principal = r.amount.min(outstanding);
+        outstanding -= to_principal;
+        interest_paid += r.amount - to_principal;
+        t = at;
+    }
+    interest_num += outstanding * apr_bps as u128 * now.saturating_sub(t) as u128;
+    let interest = interest_num.div_ceil(BPS * SECONDS_PER_YEAR);
+    Owed { principal: outstanding, interest: interest.saturating_sub(interest_paid) }
+}
+
+/// Health of a live loan at `now`: past maturity with debt left it is in default and may be
+/// liquidated whatever the price; otherwise the loan-to-value decides.
+pub fn assess_at(terms: &LoanTerms, debt: u128, collateral_zat: u64, price: Price, now: u64) -> Health {
+    if debt > 0 && now >= terms.maturity {
+        return Health::Liquidating;
+    }
+    assess(terms, debt, collateral_zat, price)
+}
+
+/// Health the policy signer reports for a live loan, from the loan-to-value alone.
 pub fn assess(terms: &LoanTerms, debt: u128, collateral_zat: u64, price: Price) -> Health {
     match ltv_bps(debt, collateral_zat, price) {
         None => Health::Liquidating,
@@ -149,6 +203,28 @@ mod tests {
     }
 
     #[test]
+    fn interest_accrues_only_on_outstanding_principal() {
+        let year = 365 * 24 * 60 * 60;
+        let p = 10_000 * USDC;
+        // Untouched for a year: same as simple interest on the whole principal.
+        assert_eq!(owed_at(p, 1_200, 0, &[], year).total(), accrued_debt(p, 1_200, year));
+        // Principal repaid on day 1: one day of interest stays owed, nothing accrues after.
+        let day = 24 * 60 * 60;
+        let owed = owed_at(p, 1_200, 0, &[Repayment { at: day, amount: p }], year);
+        assert_eq!(owed.principal, 0);
+        assert_eq!(owed.interest, (p * 1_200 * day as u128).div_ceil(10_000 * year as u128));
+        // Half the principal at mid-year: interest on 10k for half a year, then on 5k.
+        let owed = owed_at(p, 1_200, 0, &[Repayment { at: year / 2, amount: p / 2 }], year);
+        assert_eq!(owed.total(), p / 2 + 600 * USDC + 300 * USDC);
+        // Paying principal and interest in one go closes the loan.
+        let interest = owed_at(p, 1_200, 0, &[], 30 * day).interest;
+        let closed = owed_at(p, 1_200, 0, &[Repayment { at: 30 * day, amount: p + interest }], 40 * day);
+        assert_eq!(closed.total(), 0);
+        // Repayments after `now` do not count yet.
+        assert_eq!(owed_at(p, 1_200, 0, &[Repayment { at: year, amount: p }], day).principal, p);
+    }
+
+    #[test]
     fn assess_thresholds() {
         let (terms, _) = fixture(); // margin 60%, liquidation 75%
         let c = 20 * ZEC;
@@ -156,6 +232,11 @@ mod tests {
         assert_eq!(assess(&terms, d, c, Price::from_usd(1_000.0)), Health::Active); // 50%
         assert_eq!(assess(&terms, d, c, Price::from_usd(800.0)), Health::MarginCall); // 62.5%
         assert_eq!(assess(&terms, d, c, Price::from_usd(600.0)), Health::Liquidating); // 83%
+        // Past maturity with debt left: default, liquidatable at any price.
+        let p = Price::from_usd(1_000.0);
+        assert_eq!(assess_at(&terms, d, c, p, terms.maturity - 1), Health::Active);
+        assert_eq!(assess_at(&terms, d, c, p, terms.maturity), Health::Liquidating);
+        assert_eq!(assess_at(&terms, 0, c, p, terms.maturity), Health::Active);
     }
 
     #[test]

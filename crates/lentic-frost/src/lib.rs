@@ -9,6 +9,9 @@
 //! Signing ([`sign`]) uses the PCZT's per-action randomizer `alpha` as the FROST randomizer,
 //! so the aggregated signature verifies against the action's `rk = ak + [alpha]G`.
 //!
+//! [`relay`] runs the DKG through an untrusted relay (the policy signer's API): signed round-1
+//! posts and round-2 packages sealed to each recipient.
+//!
 //! Known limitation (frost#1094): frost-rerandomized 3.0 deprecates signing with
 //! a caller-supplied randomizer in favour of deriving it from the signing commitments, but a
 //! PCZT fixes `alpha` (and `rk`, which the sighash commits to) before signing starts. Each
@@ -16,6 +19,7 @@
 
 pub mod dkg;
 pub mod fvk;
+pub mod relay;
 pub mod sign;
 
 pub use reddsa_frost::frost::redpallas as frost;
@@ -39,6 +43,8 @@ pub enum Error {
     FvkDerivation,
     #[error("signature does not verify against the randomized key")]
     BadSignature,
+    #[error("DKG relay: {0}")]
+    Relay(String),
 }
 
 /// FROST identifier of a role (its discriminant: borrower 1, lender 2, policy 3).

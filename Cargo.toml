@@ -48,6 +48,10 @@ reddsa-frost = { package = "reddsa", version = "=0.5.2", features = ["frost"] }
 frost-rerandomized = { version = "3.0.0", features = ["serialization"] }
 rand_core_06 = { package = "rand_core", version = "0.6", features = ["getrandom"] }
 
+# Sealing DKG round-2 packages to session keys (secp256k1 ECDH + ChaCha20-Poly1305).
+k256 = { version = "0.13", features = ["ecdh"] }
+chacha20poly1305 = "0.11"
+
 # EVM / Base
 alloy = "2.5"
 alloy-primitives = "1"
