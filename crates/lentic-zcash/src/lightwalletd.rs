@@ -64,6 +64,14 @@ pub async fn ironwood_tree(client: &mut Client, height: u64) -> Result<String, E
     Ok(state.ironwood_tree)
 }
 
+/// The root of the Ironwood note commitment tree at the end of block `height`, as this server
+/// reports it. A watcher's anchor for the same height must equal it.
+pub async fn ironwood_root(client: &mut Client, height: u64) -> Result<orchard::Anchor, Error> {
+    let state = client.get_tree_state(BlockId { height, hash: vec![] }).await.map_err(lw)?.into_inner();
+    let tree = state.ironwood_tree().map_err(lw)?;
+    Ok(orchard::Anchor::from(tree.root()))
+}
+
 /// Broadcasts a raw transaction; returns the server's error if rejected.
 pub async fn broadcast(client: &mut Client, raw: Vec<u8>) -> Result<(), Error> {
     let resp = client.send_transaction(RawTransaction { data: raw, height: 0 }).await.map_err(lw)?.into_inner();

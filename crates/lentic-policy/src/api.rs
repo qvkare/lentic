@@ -78,6 +78,21 @@ impl AppState {
         *self.zcash.lock().await = None;
     }
 
+    /// Checks the signer's scan against every configured lightwalletd: each must report the
+    /// same Ironwood tree root at `height` as the anchor the signer computed from its own scan.
+    /// A server that left out, added or changed a note commitment cannot match.
+    pub async fn verify_anchor(&self, height: u32, anchor: orchard::Anchor) -> anyhow::Result<()> {
+        for url in &self.lightwalletd {
+            let mut client = lightwalletd::connect(url).await?;
+            let root = lightwalletd::ironwood_root(&mut client, u64::from(height)).await?;
+            anyhow::ensure!(
+                root == anchor,
+                "{url} reports another Ironwood tree root at height {height}; the chain view is not trusted"
+            );
+        }
+        Ok(())
+    }
+
     pub async fn zcash_tip(&self) -> anyhow::Result<u32> {
         let mut client = self.zcash_client().await?;
         Ok(u32::try_from(lightwalletd::chain_info(&mut client).await?.block_height)?)

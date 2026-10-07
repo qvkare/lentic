@@ -178,6 +178,12 @@ impl Book {
         Ok((tip, notes))
     }
 
+    /// The anchor of a loan's escrow watcher at `height` (after `escrow_notes` synced it).
+    pub async fn escrow_anchor(&self, loan_id: &B256, height: u32) -> Result<orchard::Anchor> {
+        let watchers = self.watchers.lock().await;
+        Ok(watchers.get(loan_id).context("no watcher for this loan")?.anchor(height)?)
+    }
+
     /// One round: price, then every held loan.
     pub async fn round(&self, s: &AppState) {
         let _one_at_a_time = self.round_lock.lock().await;

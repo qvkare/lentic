@@ -10,61 +10,95 @@
 
 Colosseum Crypto World's Fair · Zcash (+ Base).
 
+## Running on Zcash testnet
+
+Two loans run end to end with `scripts/testnet-e2e.sh` (7 Oct 2026). The escrow keys were made through the
+policy signer's relay with the borrower and the lender as separate processes, and every spend was co-signed by
+the policy signer over its API after it computed the payments itself. Explorer: ZecBlock testnet, which shows
+only that shielded transactions happened.
+
+| Loan | Step | Zcash testnet transaction |
+|---|---|---|
+| A | Deposit into the 2-of-3 escrow | [`18df5f27…91b0b18c`](https://testnet.zecblock.com/tx/18df5f277fcbd5a2ed26f34400690215814e1a0179ff299905be377e91b0b18c) |
+| A | Liquidation at flood stage, lender + policy signer | [`608ffb17…8633cc9d`](https://testnet.zecblock.com/tx/608ffb1728e9583a788313a515e9750a029701ccadc8cb664cce3b518633cc9d) |
+| B | Deposit | [`13b0f0cc…66be02e8`](https://testnet.zecblock.com/tx/13b0f0ccbaba518e1f5c4adce862ffdb1dcf89233d7c3181ed519a5c66be02e8) |
+| B | Close after repayment, borrower + policy signer | [`7faf0a83…a6c593df`](https://testnet.zecblock.com/tx/7faf0a83178dcbcce9df8c6a3290e1073d90cc830c09f0843e8498d2a6c593df) |
+
+The amounts, the split the signer attested and the earlier runs are in [docs/testnet.md](docs/testnet.md).
+
 ## How it works
 
 ```
-Borrower CLI ── FROST share 1 ─┐                      ┌─ FROST share 2 ── Lender daemon (FVK watch, PCZT prove, broadcast)
-                               └── frostd relay ──────┤
-                                                      └─ FROST share 3 ── Policy signer (dstack/TDX, attested on Base)
-Zcash (Ironwood, v6 tx): escrow notes · close / liquidation built as PCZTs at event time
-Base: LenderVault (ERC-4626, one per lender) · LoanBook {termsHash, health, attestationHash} · AttestationVerifier (Automata DCAP)
+Borrower CLI ── FROST share 1 ─┐                      ┌─ FROST share 2 ── Lender CLI (scan, PCZT, prove, broadcast)
+                               └── policy signer API ─┤   (DKG relay: signed round 1, sealed round 2)
+                                                      └─ FROST share 3 ── Policy signer (TEE, attested on Base)
+Zcash (Ironwood, v6 tx): escrow notes · close / refund / liquidation built as PCZTs at event time
+Base: LoanBook {termsHash, health, attestationHash} creates the lenders' LenderVaults (ERC-4626) · AttestationVerifier
 ```
 
-- **Any two of three** can move the collateral. Lender + policy can only liquidate, with the split the policy signer
-  computes from the live price; borrower + policy can only return the collateral once repayment is seen on Base;
-  borrower + lender can do anything together. Lentic runs only the policy signer: at most 1/3.
-- **Nothing is pre-signed.** A fully signed shielded transaction can be broadcast by whoever holds it (no script, no
-  timelock), so every signature is made at event time. What v6 transactions give us instead is the separation of
-  signing and proving: spend-auth signatures do not commit to the anchor or witnesses, so signers never touch the
-  note commitment tree and the prover refreshes the anchor right before broadcast.
-- **Privacy, honestly.** Hidden: collateral amount, escrow, Zcash addresses, liquidation split. Public: that shielded
-  transactions happened; on Base the terms hash, the health flag and the ordinary USDC transfers of the loan.
+- **Any two of three** can move the collateral. Lender + policy signer only liquidate, with the split the signer
+  computes from the live price; borrower + policy signer only return the collateral once the debt is repaid on
+  Base (or refund it if the loan was never funded); borrower + lender can do anything together. Lentic runs only
+  the policy signer: at most 1/3.
+- **The policy signer checks, then signs.** For every spend it scans the escrow from its viewing key, reads the
+  debt from the vault's repayment events and the price from its own feed, works out the only payments it accepts
+  and checks the PCZT against them: every escrow note spent and nothing else, exactly the planned outputs (so the
+  ZIP 317 fee), a short expiry, the next block's consensus branch, no other spend in flight, and an Ironwood
+  tree root that every configured lightwalletd agrees with. Then it runs two FROST rounds and returns an
+  attestation (price, round, debt, payments, sighash) signed by its Base key; LoanBook stores its hash.
+- **The key is made through an untrusted relay.** Each party's round-1 post is signed by its Base key; round-2
+  packages travel sealed (ECIES) to their recipient, so the relay, though it is the policy signer, cannot rebuild
+  the other parties' polynomials.
+- **Nothing is pre-signed.** A fully signed shielded transaction can be broadcast by whoever holds it (no script,
+  no timelock), so every signature is made at event time. v6 transactions separate signing from proving:
+  spend-auth signatures do not commit to the anchor or witnesses, so signers never touch the note commitment tree
+  and the prover refreshes the anchor right before broadcast.
+- **Privacy, honestly.** Hidden: collateral amount, escrow, Zcash addresses, liquidation split. Public: that
+  shielded transactions happened; on Base the terms hash, the health flag and the ordinary USDC transfers.
 
-## Verified against source and live networks (6 Oct 2026)
+## Verified against source and live networks
 
-| Claim the design relies on | Evidence |
+| Claim | Evidence |
 |---|---|
-| Re-randomized FROST (reddsa 0.5.2 / frost-rerandomized 3.0) signatures verify as Orchard spend-auth signatures under `rk = ak + [α]G`, with α taken from the PCZT | `lentic-frost` tests, `escrow_e2e` |
-| v6 sighash is independent of anchor and witnesses: sign first, then set a *newer* anchor and witness, prove, extract | `liquidation_by_lender_and_policy_with_anchor_refresh` (sighash compared before/after) |
-| Signatures are bound to the consensus branch: an NU6.3 signature is rejected on the NU7 transaction; re-signing works | `signatures_are_bound_to_the_consensus_branch` |
-| Ironwood PCZTs build under NU7 (testnet is already past NU7 at 4,465,026) | same test, real testnet params |
-| Mainnet NU6.3 at 3,428,143; branch ids 0x37A5165B / 0x77190AD9 | `zcash_protocol` 0.11.0-pre.0; live: mainnet tip on `37a5165b`, testnet tip on `77190ad9` (`lentic-watch info`) |
-| `termsHash` encoding identical in Rust, Solidity and `cast` | shared vector `contracts/test/vectors/terms_hash.txt` |
-| The policy signer's dev quote parses on chain with the same measurement/report-data layout | smoke test registers the service-generated quote |
+| A FROST 2-of-3 escrow on Zcash testnet: deposits, a co-signed liquidation and a co-signed close mined | [docs/testnet.md](docs/testnet.md), `scripts/testnet-e2e.sh` |
+| Re-randomized FROST (reddsa 0.5.2 / frost-rerandomized 3.0) signatures verify as Ironwood spend-auth signatures under `rk = ak + [α]G`, α from the PCZT | `lentic-frost` tests, `escrow_e2e`, testnet |
+| Sign first, then set a newer anchor and witness, prove, extract: the sighash does not change | `liquidation_by_lender_and_policy_with_anchor_refresh`, every testnet spend |
+| The escrow watcher's anchor equals the server's Ironwood tree root; tree size checked after every block | `scan_e2e`, `lentic-watch scan` (`anchorMatchesServer`) |
+| The policy signer refuses other payments, partial spends, foreign notes and long-lived transactions | `cosign::tests` |
+| A relay that is also a participant cannot read or swap DKG packages | `relay::tests` |
+| Signatures are bound to the consensus branch: an NU6.3 signature fails under NU7; re-signing works | `signatures_are_bound_to_the_consensus_branch` |
+| Only vaults LoanBook created open loans; a loan id is bound to its vault | `test_open_onlyByVaultsCreatedHere`, `test_noVaultCanTakeAnotherVaultsLoanId` |
+| `termsHash` identical in Rust, Solidity and `cast` | `contracts/test/vectors/terms_hash.txt` |
+| Interest accrues on the outstanding principal, repayments booked principal first | `interest_accrues_only_on_outstanding_principal` |
 
-**Not yet verified:** a real TDX quote through Automata DCAP on Base (needs a dstack CVM), the policy image build in
-Docker (no daemon on the dev machine), a broadcast on a public network.
+**Not verified yet:** a real TDX quote through Automata DCAP on Base (needs a dstack CVM; the testnet runs use the
+development attestor), the policy image build for `linux/amd64`, a mainnet loan.
 
-**Upstream caveat:** the RedPallas FROST ciphersuite was removed from reddsa `main` on 2026-09-25 while it moves to the
-`frost` repo ([reddsa#280](https://github.com/ZcashFoundation/reddsa/pull/280), [frost#963](https://github.com/ZcashFoundation/frost/issues/963)).
-Lentic pins the last release that ships it (reddsa 0.5.2). Re-randomized FROST/RedPallas is unaudited (NCC 2023 covered
-frost-core only), and signing with a PCZT-supplied randomizer uses an API frost-rerandomized 3.0 deprecates (frost#1094).
+**Upstream notes.** The RedPallas FROST ciphersuite was removed from reddsa `main` on 2026-09-25 while it moves to
+the `frost` repo ([reddsa#280](https://github.com/ZcashFoundation/reddsa/pull/280),
+[frost#963](https://github.com/ZcashFoundation/frost/issues/963)); Lentic pins the last release that ships it
+(reddsa 0.5.2). Re-randomized FROST/RedPallas is unaudited (NCC 2023 covered frost-core only). Signing with the
+PCZT's α uses the API frost-rerandomized 3.0 marks deprecated; the maintainer confirmed on 1 Oct 2026 that a
+builder-chosen α is fine as long as it stays among the parties
+([frost#1094](https://github.com/ZcashFoundation/frost/issues/1094)), which is why PCZTs only travel to the
+policy signer over its API. The escrow's viewing key is derived from a borrower seed, not by ZIP 2005's
+"Usage with FROST" derivation, so escrow notes are not quantum-recoverable yet.
 
 ## Repo layout
 
 | Path | What |
 |---|---|
-| `crates/lentic-core` | Loan terms + `termsHash`, health, LTV / accrued debt / liquidation split |
-| `crates/lentic-frost` | 2-of-3 DKG with Orchard even-y normalization, escrow FVK from `ak` + borrower seed, re-randomized signing |
-| `crates/lentic-zcash` | Escrow address/UFVK, Ironwood PCZT pipeline (build → check outputs → sign → refresh anchor → prove → extract), ZIP 317 fee, lightwalletd client, offline chain sim |
-| `crates/lentic-base` | alloy bindings for the Base contracts, loan/vault reads, health writes |
-| `crates/lentic-policy` | Policy signer service: dstack KMS key + TDX quote (or dev quote), assess / liquidation-plan API, Base + lightwalletd reads |
-| `crates/lentic-signer` | Borrower/lender CLI: DKG, share bundles, escrow keys, PCZT inspect/sign, `terms-hash`, offline `demo` |
-| `crates/lentic-watch` | Chain CLI: server info, Ironwood tree state, prove, extract, broadcast |
-| `contracts/` | Foundry: `LenderVault`, `LoanBook`, `AttestationVerifier` + `TdxQuote`, `LoanTermsLib`; mocks; deploy scripts |
-| `web/` | Vite + React + viem: a home page (the flood drill, four escrow policies as simulations, a loan simulator, a key picker), the lender book and one gauge station per loan. Design direction in [web/DESIGN.md](web/DESIGN.md) |
+| `crates/lentic-core` | Loan terms, `termsHash`, loan ids, health, debt on the outstanding principal, liquidation split |
+| `crates/lentic-frost` | 2-of-3 DKG with Orchard even-y normalization, escrow FVK, re-randomized signing, the DKG relay protocol |
+| `crates/lentic-zcash` | Escrow keys and addresses, the escrow watcher (compact blocks, nullifiers, witnesses), the Ironwood PCZT pipeline, ZIP 317 fee, lightwalletd client, a testnet wallet, offline chain sim |
+| `crates/lentic-base` | alloy bindings for the Base contracts, loan, vault and repayment reads, health writes |
+| `crates/lentic-policy` | Policy signer: dstack KMS key + TDX quote (or dev quote), DKG relay, loan registration, escrow scans, co-signing with checks and attestations |
+| `crates/lentic-signer` | Borrower/lender CLI: Base keys, DKG through the signer, terms approval, `cosign` (close, refund, liquidation) |
+| `crates/lentic-watch` | Chain CLI: scan a viewing key, build and finalize escrow spends, a testnet wallet, broadcast |
+| `contracts/` | Foundry: `LoanBook` (creates vaults), `LenderVault`, `AttestationVerifier` + `TdxQuote`, `LoanTermsLib`; mocks; deploy scripts |
+| `web/` | Vite + React + viem: home page (policy simulations, a loan simulator, a key picker), the lender book, one gauge station per loan. Design in [web/DESIGN.md](web/DESIGN.md) |
 | `deploy/` | Policy signer Dockerfile, local docker-compose, dstack app compose |
-| `scripts/` | `export-abis.mjs`, `dev-deploy.sh`, `smoke.sh`, `screens.mjs`, `design-check.mjs` |
+| `scripts/` | `testnet-e2e.sh`, `deploy-sepolia.sh`, `dev-deploy.sh`, `smoke.sh`, `export-abis.mjs`, `screens.mjs`, `design-check.mjs` |
 
 ## Quickstart
 
@@ -78,6 +112,26 @@ git submodule update --init --recursive && pnpm install
 pnpm demo            # offline: DKG → deposit → liquidation PCZT → FROST 2-of-3 → anchor refresh → proof → valid tx
 ```
 
+Two loans on Zcash testnet (needs a funded test wallet; Base is a local anvil unless `BASE=sepolia`):
+
+```bash
+cargo build --workspace
+```
+
+```bash
+./target/debug/lentic-watch wallet new --out dev/testnet/funder.wallet.json
+```
+
+```bash
+./target/debug/lentic-watch wallet new --out dev/testnet/lender-payout.wallet.json
+```
+
+```bash
+bash scripts/testnet-e2e.sh
+```
+
+Fund the first wallet's `addressR0` (`utest1…`) from a testnet faucet before the last step.
+
 Local stack (anvil on :8546 so it does not collide with another local chain on :8545):
 
 ```bash
@@ -85,58 +139,72 @@ pnpm local:chain     # terminal 1
 ```
 
 ```bash
-cargo build --workspace && pnpm local:deploy    # contracts + one funded demo loan → dev/loan.local.json
+cargo build --workspace && pnpm local:deploy    # contracts + demo loans → dev/loan.local.json
 ```
 
 ```bash
-pnpm policy          # terminal 2: policy signer on http://127.0.0.1:8787 (dev attestor, dev routes, health reports)
+pnpm policy          # terminal 2: policy signer on http://127.0.0.1:8787
 ```
 
 ```bash
 pnpm web             # terminal 3: http://localhost:5174
 ```
 
-Everything at once on throwaway ports, as CI does:
+Everything offline on throwaway ports, as CI does:
 
 ```bash
 pnpm smoke
 ```
 
 Tests: `pnpm test` (Rust workspace incl. the Ironwood end-to-end flows, then Foundry). Design: `pnpm design:check`
-(the banned-pattern check from web/DESIGN.md) and `pnpm screens` (375, 820 and 1280 px screenshots of the lender book
-and a station, with the live price and with a test price over flood stage, into `web/screens/`).
+and `pnpm screens`.
 
-## Public site
+## The two CLIs
 
-`https://lentic.qvkare.com` serves the web app as static assets on Cloudflare (`web/wrangler.jsonc`). Publish with
-`pnpm deploy:web` after `wrangler login`; the custom domain and its DNS record come from the config.
-
-A production build reads only what its env names (see `web/.env.example`). With no `VITE_BASE_RPC_URL` and
-`VITE_POLICY_URL` it never calls localhost: the home page runs its simulations and the example flood drill, and the
-lender book and station pages say no live deployment is connected. Set `VITE_CHAIN_ID=84532`, a Base Sepolia RPC and a
-public policy signer URL once those exist, then publish again.
+```
+lentic-signer base-key --out borrower.key
+lentic-signer dkg create --borrower 0x… --lender 0x…                       # on the policy signer
+lentic-signer dkg join --session 0x… --role borrower --base-key borrower.key --out borrower.share.json
+lentic-signer terms approve --terms terms.json --salt 0x… --base-key borrower.key
+lentic-signer terms register --terms terms.json --salt 0x… --session 0x… --borrower-signature … --lender-signature …
+lentic-signer cosign --loan-id 0x… --kind liquidation|close|refund --share lender.share.json
+lentic-watch scan --ufvk uvftest1… --birthday <height>
+lentic-watch wallet new|show|balance|send
+lentic-watch escrow build|finalize
+```
 
 ## Policy signer API
 
 | Route | |
 |---|---|
-| `GET /v1/info` | signer address, attestor, measurement, whether it is registered on Base, round settings |
-| `GET /v1/price` | the latest ZEC/USD reading: median of five public exchange tickers (Pyth's public API now needs a key) |
-| `GET /v1/loans/{id}/gauge` | stages and every LTV reading for a loan the signer holds terms for (parties only in production) |
-| `GET /v1/attestation` | report data and quote to submit to `AttestationVerifier.register` |
+| `GET /v1/info` | signer address, attestor, measurement, registration on Base, keys and loans held |
+| `GET /v1/price` | the latest ZEC/USD reading: median of five public exchange tickers |
+| `POST /v1/dkg`, `GET /v1/dkg/{id}`, `POST /v1/dkg/{id}/round1`, `/round2`, `/done` | the DKG relay; the signer joins as the third participant |
+| `POST /v1/loans` | terms approved by borrower and lender, bound to the DKG session's escrow key |
 | `GET /v1/loans`, `GET /v1/loans/{id}` | LoanBook state |
-| `GET /v1/zcash` | chain info from every configured lightwalletd and whether they agree |
-| `POST /v1/assess` | terms + salt (+ loan id) → terms match on chain, accrued debt, LTV, health |
-| `POST /v1/liquidation-plan` | terms + price + debt → the exact outputs the signer will co-sign |
-| `POST /v1/loans/{id}/health` | dev only (`--dev-routes`): write health from the signer key |
-| `POST /v1/dev/price` | dev only: a test price instead of the exchanges (`{"usd": 650}`, `{"usd": null}` to clear) |
+| `GET /v1/loans/{id}/gauge`, `GET /v1/loans/{id}/escrow` | readings, debt, the escrow's notes and the co-signing record (parties only in production) |
+| `GET /v1/loans/{id}/plan/{kind}` | what the signer would co-sign now (`liquidation`, `close`, `refund`) and why |
+| `POST /v1/loans/{id}/cosign`, `POST /v1/cosign/{session}/shares` | the two FROST rounds; round 1 only after the checks |
+| `GET /v1/attestation` | report data and quote to submit to `AttestationVerifier.register` |
+| `GET /v1/zcash` | chain info from every configured lightwalletd |
+| `POST /v1/assess`, `POST /v1/liquidation-plan` | calculators |
+| `POST /v1/loans/{id}/health`, `POST /v1/dev/price` | development only (`--dev-routes`) |
 
-## Next
+## Limits
 
-Networked DKG/signing over frostd; FVK scanning into a wallet DB (`zcash_client_sqlite`) in `lentic-watch`, so the
-gauge shows the collateral the escrow holds instead of the amount committed in the terms; liquidation co-signing in the
-policy loop and the policy signer's FROST share storage; an authenticated oracle (Pyth with a key, or on-chain on
-Base); dstack deployment and real DCAP registration on Base Sepolia.
+- The policy signer has not yet run inside a TDX CVM; on testnet it runs with the development attestor, and the
+  Base Sepolia deployment accepts its development quote through a mock DCAP verifier.
+- Party routes (gauge, escrow, plan) are unauthenticated: run the signer where only the parties reach it.
+- The price is a median of five exchanges until an authenticated oracle is wired in.
+- The escrow's viewing key is not ZIP 2005 quantum-recoverable (see above).
+- Lending is licensed: Lentic is built for commercial borrowers and professional lenders, outside the EU.
+
+## Prior work
+
+All code in this repository was written for this hackathon, starting on 6 Oct 2026 (first commit `492f5fa`). It
+reuses no code from the team's earlier open-source projects (Verdict Layer, OpenGrant, CovenantOS, linea-mcp). It
+builds on open-source libraries: the librustzcash crates, `orchard`, `reddsa`/`frost`, alloy, OpenZeppelin
+Contracts and Foundry.
 
 ## License
 

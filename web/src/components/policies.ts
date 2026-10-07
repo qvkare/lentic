@@ -424,7 +424,7 @@ export const POLICIES: Policy[] = [
     id: "loan",
     name: "Loan",
     live: true,
-    summary: "USDC from a lender's vault on Base against ZEC that stays in the escrow. Built and running.",
+    summary: "USDC from a lender's vault on Base against ZEC that stays in the escrow. Running on Zcash testnet.",
     parties: { a: "Borrower", b: "Lender" },
     watches: "ZEC/USD every round, and repayments on Base",
     rules: [

@@ -257,8 +257,10 @@ async fn main() -> Result<()> {
         Command::Scan { ufvk, birthday, chain } => {
             let fvk = keys::decode_ufvk(&chain.network.params(), &ufvk)?;
             let mut w = Watcher::new(fvk, birthday);
-            let (_, tip) = synced(&chain.server, &mut w).await?;
-            print(&json!({ "tip": tip, "scan": w.summary() }))
+            let (mut client, tip) = synced(&chain.server, &mut w).await?;
+            // The anchor computed from the scan must be the root the server reports for the tip.
+            let root = lightwalletd::ironwood_root(&mut client, u64::from(tip)).await?;
+            print(&json!({ "tip": tip, "anchorMatchesServer": w.anchor(tip)? == root, "scan": w.summary() }))
         }
         Command::Escrow(EscrowCommand::Build { ufvk, birthday, pays, rest_to, confirmations, out, chain }) => {
             let params = chain.network.params();

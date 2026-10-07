@@ -35,7 +35,14 @@ export function ExplorerViews({ loan }: { loan: ExplorerLoan }) {
         {view === "zcash" && (
           <>
             <p className="record-head">
-              Transaction <span className="mono">3968785d…fda54542</span> <span className="state-tag">Example</span>
+              Transaction{" "}
+              <a
+                className="mono"
+                href="https://testnet.zecblock.com/tx/608ffb1728e9583a788313a515e9750a029701ccadc8cb664cce3b518633cc9d"
+              >
+                608ffb17…8633cc9d
+              </a>{" "}
+              <span className="state-tag live">Testnet</span>
             </p>
             <dl className="readings-list">
               <dt>Format</dt>
@@ -49,7 +56,9 @@ export function ExplorerViews({ loan }: { loan: ExplorerLoan }) {
               <dt>Fee</dt>
               <dd>0.0001 ZEC</dd>
             </dl>
-            <p className="note">Anyone sees that a shielded transaction happened, and nothing else.</p>
+            <p className="note">
+              A liquidation on Zcash testnet. Anyone sees that a shielded transaction happened, and nothing else.
+            </p>
           </>
         )}
         {view === "lender" && (

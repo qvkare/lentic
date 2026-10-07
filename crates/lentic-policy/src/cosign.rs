@@ -11,7 +11,9 @@
 //! - the outputs are exactly the planned payments, so the fee is exactly ZIP 317's;
 //! - the transaction targets the next block's consensus branch and expires within 50 blocks;
 //! - no other spend of the escrow is in flight: it never signs a close and a liquidation of
-//!   the same notes.
+//!   the same notes;
+//! - every configured lightwalletd reports the same Ironwood tree root as the anchor the
+//!   signer computed from its own scan, so one server cannot hide or invent a note.
 //!
 //! Signing is two FROST rounds per spend. Round 1 runs only after the checks pass, with fresh
 //! nonces for that PCZT; round 2 builds the signing package itself from the stored sighash,
@@ -493,6 +495,11 @@ pub async fn start(
         }
     }
     let (plan, checked) = matched.ok_or_else(|| conflict(first_error.unwrap_or_default()))?;
+
+    // The notes the plan rests on come from one server's compact blocks: every configured
+    // server must agree on the tree they belong to before the signer commits.
+    let anchor = s.book.escrow_anchor(&id, plan.tip).await?;
+    s.verify_anchor(plan.tip, anchor).await.map_err(|e| conflict(format!("{e:#}")))?;
 
     if let Some(intent) = s.cosign.intent(&id).await
         && intent.mined.is_none()

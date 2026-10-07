@@ -10,6 +10,7 @@ export const SECTIONS = [
   { id: "how", label: "How it runs" },
   { id: "keys", label: "Keys" },
   { id: "private", label: "Privacy" },
+  { id: "testnet", label: "Testnet" },
 ] as const;
 
 /** The mark: the disc and still-water line from the favicon (web/DESIGN.md, Mark). */

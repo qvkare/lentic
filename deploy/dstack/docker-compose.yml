@@ -1,27 +1,47 @@
-# Policy signer app for a dstack CVM (Phala Cloud / self-hosted dstack, TDX).
+# Policy signer app for a dstack CVM (Phala Cloud or self-hosted dstack, Intel TDX).
 #
-# This file is the app's code identity: dstack extends RTMR3 with its compose hash, and
-# AttestationVerifier on Base pins keccak256(MRTD ‖ RTMR0..3). Therefore:
-#   - pin the image by digest (a tag can move),
-#   - keep environment values that change behaviour here (they are hashed), and pass only
-#     operational secrets (RPC keys) as dstack encrypted env vars.
-# After deploying, read the measurement from the CVM (`lentic-policy measurement --attestor
-# dstack`), deploy AttestationVerifier/LoanBook with it (contracts/script/Deploy.s.sol), then
-# submit GET /v1/attestation's quote to AttestationVerifier.register.
+# This file is part of the signer's code identity: dstack extends RTMR3 with the app's compose
+# hash, and AttestationVerifier on Base pins keccak256(MRTD ‖ RTMR0..3). Therefore:
+#   - pin the image by digest (a tag can move);
+#   - keep every value that changes behaviour here, where it is hashed; pass only the Base RPC
+#     URL (it may carry an API key) as an encrypted env var. The signer checks what that RPC
+#     tells it against the chain itself only for Zcash (below), so use an RPC you trust;
+#   - RTMR3 also records the CVM's instance id, so the measurement belongs to one instance:
+#     redeploying means a new measurement, a new AttestationVerifier and a new LoanBook.
+#
+# The image bakes contracts/deployments/<chain>.json (LoanBook's address) while LoanBook pins
+# the image's measurement, so the addresses are fixed before anything is deployed:
+#   1. pick the deployer and its next nonce N; AttestationVerifier will be at
+#      `cast compute-address <deployer> --nonce N`, LoanBook at nonce N+1;
+#   2. write those addresses into contracts/deployments/<chain>.json, build and push the image,
+#      put its digest below and deploy the CVM;
+#   3. read the measurement (`lentic-policy measurement --attestor dstack` in the CVM) and run
+#      contracts/script/Deploy.s.sol from the same deployer at nonce N;
+#   4. submit GET /v1/attestation's quote to AttestationVerifier.register.
 services:
   lentic-policy:
-    image: ghcr.io/lentic-xyz/lentic-policy@sha256:REPLACE_WITH_RELEASE_DIGEST
+    image: ghcr.io/qvkare/lentic-policy@sha256:REPLACE_WITH_RELEASE_DIGEST
     restart: always
     volumes:
       - /var/run/dstack.sock:/var/run/dstack.sock
+      # The escrow key shares: the CVM's encrypted volume, sealed to this app.
+      - lentic-state:/app/state
     environment:
       LENTIC_ATTESTOR: dstack
       LENTIC_LISTEN: 0.0.0.0:8787
       LENTIC_CONFIG_ID: lentic-policy-v1
       LENTIC_DEPLOYMENT: /app/deployments/8453.json
+      LENTIC_STATE_DIR: /app/state
+      LENTIC_LOANS_DIR: /app/state/loans
+      LENTIC_REPORT_HEALTH: "true"
       ZCASH_NETWORK: mainnet
-      # Two independent servers; the signer refuses to act when they disagree.
-      LIGHTWALLETD: https://zec.rocks:443,https://zaino.example:443
+      # Every server must report the same Ironwood tree root as the signer's own scan before it
+      # co-signs, so one dishonest server cannot hide a note. Add an independent second operator
+      # (e.g. a Zebra + Zaino node you run): the zec.rocks regions share one operator.
+      LIGHTWALLETD: https://zec.rocks:443
       BASE_RPC_URL: ${BASE_RPC_URL}
     ports:
       - "8787:8787"
+
+volumes:
+  lentic-state:

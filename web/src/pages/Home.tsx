@@ -7,7 +7,7 @@ import { VisibilityTable } from "../components/Ledgers";
 import { LoanSimulator } from "../components/LoanSimulator";
 import { PolicyStage } from "../components/PolicyStage";
 import { deployment, listLoans } from "../chain";
-import { clock, ltvAt, usd } from "../format";
+import { clock, ltvAt, short, usd } from "../format";
 import { PRICE_SOURCE, policyGauge, policyPrice } from "../policy";
 
 /** Clearly marked stand-in when the policy signer cannot be reached. */
@@ -130,6 +130,34 @@ const AUDIENCE: { who: string; does: string; policy: string }[] = [
   },
 ];
 
+/** The first loans on Zcash testnet (docs/testnet.md): real transactions, shown by any explorer. */
+const TESTNET: { loan: string; step: string; txid: string; what: string }[] = [
+  {
+    loan: "A",
+    step: "Deposit",
+    txid: "18df5f277fcbd5a2ed26f34400690215814e1a0179ff299905be377e91b0b18c",
+    what: "0.01 TAZ into a 2-of-3 escrow whose key was made through the policy signer's relay.",
+  },
+  {
+    loan: "A",
+    step: "Liquidation",
+    txid: "608ffb1728e9583a788313a515e9750a029701ccadc8cb664cce3b518633cc9d",
+    what: "At flood stage the lender and the policy signer co-signed the split the signer computed: 0.00867 TAZ to the lender, 0.00123 TAZ back to the borrower.",
+  },
+  {
+    loan: "B",
+    step: "Deposit",
+    txid: "13b0f0ccbaba518e1f5c4adce862ffdb1dcf89233d7c3181ed519a5c66be02e8",
+    what: "0.01 TAZ into a second escrow.",
+  },
+  {
+    loan: "B",
+    step: "Close",
+    txid: "7faf0a83178dcbcce9df8c6a3290e1073d90cc830c09f0843e8498d2a6c593df",
+    what: "Once the USDC was repaid on Base, the borrower and the policy signer returned the ZEC to the borrower.",
+  },
+];
+
 const PROOFS: { claim: string; evidence: string }[] = [
   {
     claim: "Two of three FROST shares produce a valid Zcash spend authorization; one share alone cannot.",
@@ -219,7 +247,8 @@ export function Home() {
         <div className="section-head">
           <h2 id="policies-title">One escrow, four policies</h2>
           <p className="lede small">
-            The keys and the policy signer stay the same; the policy decides what the escrow is for. Loans run today.
+            The keys and the policy signer stay the same; the policy decides what the escrow is for. Loans run on Zcash
+            testnet today.
             Credit lines, OTC settlement and recovery are simulated here with the same keys.
           </p>
         </div>
@@ -341,6 +370,41 @@ export function Home() {
         </table>
       </section>
 
+      <section id="testnet" aria-labelledby="testnet-title">
+        <div className="section-head">
+          <h2 id="testnet-title">On Zcash testnet</h2>
+          <p className="lede small">
+            Real transactions from the first two loans. An explorer shows only that shielded transactions happened.
+          </p>
+        </div>
+        <table className="ledger proofs testnet">
+          <thead>
+            <tr>
+              <th scope="col">Loan</th>
+              <th scope="col">Step</th>
+              <th scope="col">Transaction</th>
+              <th scope="col">What happened</th>
+            </tr>
+          </thead>
+          <tbody>
+            {TESTNET.map((t) => (
+              <tr key={t.txid}>
+                <td data-label="Loan">{t.loan}</td>
+                <th scope="row" data-label="Step">
+                  {t.step}
+                </th>
+                <td data-label="Transaction">
+                  <a className="mono" href={`https://testnet.zecblock.com/tx/${t.txid}`}>
+                    {short(t.txid, 6)}
+                  </a>
+                </td>
+                <td data-label="What happened">{t.what}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
       <section id="proven" aria-labelledby="proven-title">
         <div className="section-head">
           <h2 id="proven-title">Proven in code</h2>
@@ -378,7 +442,10 @@ export function Home() {
             Credit lines, OTC settlement and recovery are simulations: the escrow, its keys and the policy signer exist;
             their rules are not written yet.
           </li>
-          <li>The gauge uses the collateral committed in the terms until the escrow watcher reads the escrow itself.</li>
+          <li>
+            The policy signer runs with a development attestation until it moves into a TDX enclave; on Base Sepolia a
+            mock verifier accepts that attestation.
+          </li>
           <li>ZEC/USD is a median of five exchanges until an authenticated oracle is wired in.</li>
           <li>Lending is licensed: Lentic is built for commercial borrowers and professional lenders, outside the EU.</li>
         </ul>
