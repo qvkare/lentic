@@ -8,7 +8,7 @@
 > the lender and the policy signer sign a liquidation at the live price: ZEC covering the debt goes
 > shielded→shielded to the lender, the surplus back to the borrower.
 
-Colosseum Crypto World's Fair · Zcash (+ Base).
+ZECATHON · Private Markets · Zcash (+ Base).
 
 ## Running on testnet
 
